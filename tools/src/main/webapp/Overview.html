@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+<style type="text/css">
+html {
+	height: 100%
+}
+
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0
+}
+
+.lamp {
+	display:inline;
+	background-color:red;
+	border:1px solid black;
+	height:1em
+}
+.src {
+	display:inline;
+	height:1em
+}
+.active {
+	background-color:green;
+}
+.map {
+	height: 80%;
+	width: 80%;
+}
+
+.labels {
+	color: red;
+	background-color: white;
+	font-family: "Lucida Grande", "Arial", sans-serif;
+	font-size: 10px;
+	font-weight: bold;
+	text-align: center;
+	width: 80px;
+	border: 2px solid black;
+	white-space: nowrap;
+}
+</style>
+<title>BRIDGE overview of all resources in S2D2S.</title>
+<script type="text/javascript"
+	src="http://maps.googleapis.com/maps/api/js?key=AIzaSyBAI8vyV2UkwGag1r7lJHn6hlzDTDAOads&sensor=false">
+	
+</script>
+<script src="components/jquery/jquery.min.js"></script>
+<script src="components/json2/json2.js"></script>
+<script src="js/markerwithlabel.js"></script>
+<script>
+var to = null;
+var map = null;
+var shown_markers = {};
+
+var parse = function (json){
+	if (typeof json != "undefined"){
+			//Grep name and location
+			var name = "navTest";
+			if (typeof json.data != "undefined"){
+				json=json.data;
+			}
+			var pos = new google.maps.LatLng(json.lat,json.lon);
+			if (typeof shown_markers[name] != "undefined"){
+				var marker = shown_markers[name];
+				marker.setPosition(pos);
+			} else {
+				var mOptions = {
+						position : pos,
+						map : map,
+						labelContent: name,
+					    labelAnchor: new google.maps.Point(22, 0),
+					    labelClass: "labels", // the CSS class for the label
+					    labelStyle: {opacity: 0.75}
+				}
+				var marker = new MarkerWithLabel(mOptions);
+				shown_markers[name]=marker;
+			}
+	}
+}
+
+var update_rm = function(){
+	$.ajax({
+		url:"http://localhost:8081/agents/navTest/",
+		processdata:false,
+		crossDomain: true,
+		data:'{"method":"getCurrentLocation","id":1,"jsonrpc":"2.0","params":{}}',
+		type:"POST"
+	}).done(function (data){
+		if (typeof data == "string" && data != ""){
+			data=JSON.parse(data);
+		}
+		$(".lamp").toggleClass("active",true);
+		$(".src").html("(NEW)");
+		parse(data.result);
+		to = setTimeout(update_rm,500);	
+	})
+}
+
+var stop = function(){
+	if (to != null){
+		$(".lamp").toggleClass("active",false);
+		clearTimeout(to);
+		to=null;
+	}
+}
+
+var draw_map = function(){
+	var mapOptions = {
+			center: new google.maps.LatLng(51.908913,4.479624),
+			zoom: 15,
+			mapTypeId: google.maps.MapTypeId.SATELLITE
+		};
+	map = new google.maps.Map($(".map").get(0),
+				mapOptions);
+}
+
+$(document).ready(function() {
+	update_rm();
+	draw_map();
+});
+</script>
+</head>
+<body>
+&nbsp;&nbsp;<div class="lamp">&nbsp;&nbsp;&nbsp;</div>
+<div class="src"></div>&nbsp;
+<input type="button" onClick="stop();update_rm()" value="start from RM">
+<input type="button" onClick="stop()" value="stop">
+<br>
+<div class="map"></div>
+</body>
+</html>

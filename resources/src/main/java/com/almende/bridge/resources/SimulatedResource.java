@@ -62,7 +62,7 @@ public class SimulatedResource extends Agent {
 							double length = item[3] - last[3];
 							double latDiff = item[1] - last[1];
 							double lonDiff = item[0] - last[0];
-							double part = item[3] - millis;
+							double part = millis - last[3];
 
 							final double[] loc = new double[4];
 							loc[0] = last[0] + lonDiff * (part / length);

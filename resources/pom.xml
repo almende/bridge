@@ -15,9 +15,15 @@
 
 	<properties>
 		<maven.shade.version>2.3</maven.shade.version>
+		<cors.version>2.4</cors.version>
 	</properties>
 
 	<dependencies>
+		<dependency>
+			<groupId>com.thetransactioncompany</groupId>
+			<artifactId>cors-filter</artifactId>
+			<version>${cors.version}</version>
+		</dependency>
 	</dependencies>
 
 

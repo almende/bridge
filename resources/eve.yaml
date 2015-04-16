@@ -14,6 +14,7 @@ templates:
          doAuthentication: false
          jetty: 
             port: 8081
+            cors: true
 
 agents:
 -  id: brawl
