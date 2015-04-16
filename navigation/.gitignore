@@ -7,5 +7,4 @@ release.properties
 .project
 .classpath
 pom.xml.versionsBackup
-dependency-reduced-pom.xml
-buildNumber.properties
+maps
