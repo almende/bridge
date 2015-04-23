@@ -37,12 +37,12 @@ body {
 	color: red;
 	background-color: white;
 	font-family: "Lucida Grande", "Arial", sans-serif;
-	font-size: 10px;
+	font-size: 12px;
 	font-weight: bold;
 	text-align: center;
-	width: 80px;
-	border: 2px solid black;
+	height: 2em;
 	white-space: nowrap;
+	overflow: visible;
 }
 </style>
 <title>BRIDGE overview of all resources in S2D2S.</title>
@@ -60,20 +60,30 @@ var shown_markers = {};
 
 var parse = function (json){
 	if (typeof json != "undefined"){
+		json.map(function(elem){
 			//Grep name and location
-			var name = "navTest";
-			if (typeof json.data != "undefined"){
-				json=json.data;
+			if (typeof elem.data != "undefined"){
+				elem=elem.data;
+			}		
+			var name = elem.name;
+			var displayName = ""; 
+			var eta = "";
+			if (true || elem.name == "adc598b0-e860-11e4-8ae6-56847afe9799"){
+				displayName = name;
+				if (typeof elem.eta != "undefined"){
+			    	eta = "<br>eta:"+elem.eta;
+				}
 			}
-			var pos = new google.maps.LatLng(json.lat,json.lon);
+			var pos = new google.maps.LatLng(elem.lat,elem.lon);
 			if (typeof shown_markers[name] != "undefined"){
 				var marker = shown_markers[name];
+				marker["labelContent"] = (displayName+eta);
 				marker.setPosition(pos);
 			} else {
 				var mOptions = {
 						position : pos,
 						map : map,
-						labelContent: name,
+						labelContent: displayName+eta,
 					    labelAnchor: new google.maps.Point(22, 0),
 					    labelClass: "labels", // the CSS class for the label
 					    labelStyle: {opacity: 0.75}
@@ -81,43 +91,49 @@ var parse = function (json){
 				var marker = new MarkerWithLabel(mOptions);
 				shown_markers[name]=marker;
 			}
+		});
 	}
 }
 
 var update_rm = function(){
 	$.ajax({
-		url:"http://localhost:8081/agents/navTest/",
+		url:"http://localhost:8081/agents/proxy/",
 		processdata:false,
 		crossDomain: true,
-		data:'{"method":"getCurrentLocation","id":1,"jsonrpc":"2.0","params":{}}',
+		data:'{"method":"getAllLocations","id":1,"jsonrpc":"2.0","params":{}}',
 		type:"POST"
 	}).done(function (data){
 		if (typeof data == "string" && data != ""){
 			data=JSON.parse(data);
 		}
 		$(".lamp").toggleClass("active",true);
-		$(".src").html("(NEW)");
-		parse(data.result);
+		$(".src").html("(PROXY)");
+		if (typeof google != "undefined"){
+			parse(data.result);
+		}
 		to = setTimeout(update_rm,500);	
 	})
 }
 
 var stop = function(){
+	$(".lamp").toggleClass("active",false);
 	if (to != null){
-		$(".lamp").toggleClass("active",false);
 		clearTimeout(to);
 		to=null;
 	}
 }
 
 var draw_map = function(){
+	if (typeof google != "undefined"){
+		
 	var mapOptions = {
-			center: new google.maps.LatLng(51.908913,4.479624),
-			zoom: 15,
+			center: new google.maps.LatLng(47.796237, 13.049392),
+			zoom: 13,
 			mapTypeId: google.maps.MapTypeId.SATELLITE
 		};
 	map = new google.maps.Map($(".map").get(0),
 				mapOptions);
+	}
 }
 
 $(document).ready(function() {

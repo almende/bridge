@@ -64,6 +64,9 @@ public class NavAgent extends Agent {
 				endLat, endLon));
 
 		GHResponse res = Main.getHopper().route(req);
+		if (res.hasErrors()){
+			throw new IllegalStateException("Route has error(s):"+res.getErrors());
+		}
 		InstructionList list = res.getInstructions();
 		final List<GPXEntry> gpx = list.createGPXList();
 		final ArrayNode parts = JOM.createArrayNode();
