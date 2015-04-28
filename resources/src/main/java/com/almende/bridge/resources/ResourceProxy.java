@@ -9,6 +9,14 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+
+import org.geojson.FeatureCollection;
+
 import com.almende.eve.agent.Agent;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
@@ -24,10 +32,26 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * The Class ResourceProxy.
  */
+@Path("/geojson")
 @Access(AccessType.PUBLIC)
 public class ResourceProxy extends Agent {
-	List<URI>	neighbors	= new ArrayList<URI>();
+	static ResourceProxy SINGLETON = null;
+	
+	static List<URI>			neighbors	= new ArrayList<URI>();
 
+	
+	/**
+	 * Instantiates a new resource proxy.
+	 */
+	public ResourceProxy(){
+		if (SINGLETON == null){
+			SINGLETON = this;
+		} else {
+			setConfig(SINGLETON.getConfig());
+		}
+		
+	}
+	
 	/**
 	 * Register.
 	 *
@@ -40,61 +64,83 @@ public class ResourceProxy extends Agent {
 		}
 	}
 
-	
 	/**
 	 * Gets the all geo json.
 	 *
-	 * @param incTrack
-	 *             Should the track data be included? Defaults to no.
 	 * @return the all geo json
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
 	 */
-	public ArrayNode getAllGeoJson(@Optional @Name("includeTrack") Boolean incTrack) throws IOException {
+	@GET
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getJson() throws IOException {
+		return Response.ok(getAllGeoJson(false)).build();
+	}
+
+	/**
+	 * Gets the all geo json.
+	 *
+	 * @param incTrack
+	 *            the inc track
+	 * @return the all geo json
+	 * @throws IOException
+	 *             Signals that an I/O exception has occurred.
+	 */
+	public FeatureCollection getAllGeoJson(
+			@Optional @Name("includeTrack") Boolean incTrack)
+			throws IOException {
 		final Params params = new Params();
-		params.add("includeTrack", incTrack != null && incTrack?true:false);
-		
-		final ArrayNode result = JOM.createArrayNode();
-		synchronized(neighbors){
-			for (URI uri: neighbors){
-				call(uri,"getGeoJson",params,new AsyncCallback<ObjectNode>(){
+		params.add("includeTrack", incTrack != null && incTrack ? true : false);
 
-					@Override
-					public void onSuccess(ObjectNode res) {
-						synchronized(result){
-							result.add(res);
-						}
-					}
+		final ArrayList<FeatureCollection> result = new ArrayList<FeatureCollection>();
+		synchronized (neighbors) {
+			for (URI uri : neighbors) {
+				call(uri, "getGeoJson", params,
+						new AsyncCallback<FeatureCollection>() {
 
-					/* (non-Javadoc)
-					 * @see com.almende.util.callback.AsyncCallback#onFailure(java.lang.Exception)
-					 */
-					@Override
-					public void onFailure(Exception exception) {
-						synchronized(result){
-							result.add(JOM.createObjectNode());
-						}
-					}
-					
-				});
+							@Override
+							public void onSuccess(FeatureCollection res) {
+								synchronized (result) {
+									result.add(res);
+								}
+							}
+
+							/*
+							 * (non-Javadoc)
+							 * @see
+							 * com.almende.util.callback.AsyncCallback#onFailure
+							 * (java.lang.Exception)
+							 */
+							@Override
+							public void onFailure(Exception exception) {
+								synchronized (result) {
+									result.add(new FeatureCollection());
+								}
+							}
+
+						});
 			}
 		}
-		int size=Integer.MAX_VALUE;
-		synchronized(result){
-			size=result.size();
+		int size = Integer.MAX_VALUE;
+		synchronized (result) {
+			size = result.size();
 		}
-		while (size<neighbors.size()){
+		while (size < neighbors.size()) {
 			try {
 				Thread.sleep(50);
-			} catch (InterruptedException e) {
-			}
-			synchronized(result){
-				size=result.size();
+			} catch (InterruptedException e) {}
+			synchronized (result) {
+				size = result.size();
 			}
 		}
-		return result;
+		
+		final FeatureCollection fc = new FeatureCollection();
+		for (FeatureCollection collection: result){
+			fc.addAll(collection.getFeatures());
+		}
+		return fc;
 	}
-	
+
 	/**
 	 * Gets the all locations.
 	 *
@@ -104,41 +150,44 @@ public class ResourceProxy extends Agent {
 	 */
 	public ArrayNode getAllLocations() throws IOException {
 		final ArrayNode result = JOM.createArrayNode();
-		synchronized(neighbors){
-			for (URI uri: neighbors){
-				call(uri,"getCurrentLocation",null,new AsyncCallback<ObjectNode>(){
+		synchronized (neighbors) {
+			for (URI uri : neighbors) {
+				call(uri, "getCurrentLocation", null,
+						new AsyncCallback<ObjectNode>() {
 
-					@Override
-					public void onSuccess(ObjectNode res) {
-						synchronized(result){
-							result.add(res);
-						}
-					}
+							@Override
+							public void onSuccess(ObjectNode res) {
+								synchronized (result) {
+									result.add(res);
+								}
+							}
 
-					/* (non-Javadoc)
-					 * @see com.almende.util.callback.AsyncCallback#onFailure(java.lang.Exception)
-					 */
-					@Override
-					public void onFailure(Exception exception) {
-						synchronized(result){
-							result.add(JOM.createObjectNode());
-						}
-					}
-					
-				});
+							/*
+							 * (non-Javadoc)
+							 * @see
+							 * com.almende.util.callback.AsyncCallback#onFailure
+							 * (java.lang.Exception)
+							 */
+							@Override
+							public void onFailure(Exception exception) {
+								synchronized (result) {
+									result.add(JOM.createObjectNode());
+								}
+							}
+
+						});
 			}
 		}
-		int size=Integer.MAX_VALUE;
-		synchronized(result){
-			size=result.size();
+		int size = Integer.MAX_VALUE;
+		synchronized (result) {
+			size = result.size();
 		}
-		while (size<neighbors.size()){
+		while (size < neighbors.size()) {
 			try {
 				Thread.sleep(50);
-			} catch (InterruptedException e) {
-			}
-			synchronized(result){
-				size=result.size();
+			} catch (InterruptedException e) {}
+			synchronized (result) {
+				size = result.size();
 			}
 		}
 		return result;

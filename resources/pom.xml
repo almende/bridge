@@ -14,15 +14,27 @@
 	<description>Agents representing resources</description>
 
 	<properties>
+		<wink.version>1.4</wink.version>
 		<maven.shade.version>2.3</maven.shade.version>
 		<cors.version>2.4</cors.version>
+		<jackson.version>2.4.1</jackson.version>
 	</properties>
 
 	<dependencies>
 		<dependency>
+			<groupId>org.apache.wink</groupId>
+			<artifactId>wink-server</artifactId>
+			<version>${wink.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>com.thetransactioncompany</groupId>
 			<artifactId>cors-filter</artifactId>
 			<version>${cors.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.jaxrs</groupId>
+			<artifactId>jackson-jaxrs-json-provider</artifactId>
+			<version>${jackson.version}</version>
 		</dependency>
 	</dependencies>
 
@@ -38,7 +50,7 @@
 						<transformer
 							implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 							<!-- vvv CHANGE THIS TO YOU OWN MAIN-METHOD CLASS! vvv -->
-							<mainClass>com.almende.eve.deploy.Boot</mainClass>
+							<mainClass>com.almende.bridge.resources.Booter</mainClass>
 							<!-- ^^^ CHANGE THIS TO YOU OWN MAIN-METHOD CLASS! ^^^ -->
 						</transformer>
 					</transformers>

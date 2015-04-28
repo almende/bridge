@@ -153,11 +153,11 @@ public class SimulatedResource extends Agent {
 	 * @return the geo json
 	 */
 	@Access(AccessType.PUBLIC)
-	public ObjectNode getGeoJson(
+	public FeatureCollection getGeoJson(
 			@Optional @Name("includeTrack") Boolean incTrack) {
 
 		getCurrentLocation();
-
+		
 		final FeatureCollection fc = new FeatureCollection();
 		fc.setProperty("id", getId());
 
@@ -194,7 +194,7 @@ public class SimulatedResource extends Agent {
 			fc.add(goal);
 		}
 
-		return JOM.getInstance().valueToTree(fc);
+		return fc;
 	}
 
 	/**
