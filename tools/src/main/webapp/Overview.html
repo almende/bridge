@@ -94,10 +94,10 @@ var parse = function (json){
 		});
 	}
 }
-
+var placesOfInterest = "http://localhost:8882/rs/poi";
 var update_rm = function(){
 	$.ajax({
-		url:"http://localhost:8081/agents/proxy/",
+		url:"http://localhost:8882/agents/proxy/",
 		processdata:false,
 		crossDomain: true,
 		data:'{"method":"getAllLocations","id":1,"jsonrpc":"2.0","params":{}}',
@@ -125,14 +125,30 @@ var stop = function(){
 
 var draw_map = function(){
 	if (typeof google != "undefined"){
-		
-	var mapOptions = {
-			center: new google.maps.LatLng(47.796237, 13.049392),
+		var mapOptions = {
+			center: new google.maps.LatLng(43.567000, 1.427344),
 			zoom: 13,
 			mapTypeId: google.maps.MapTypeId.SATELLITE
 		};
-	map = new google.maps.Map($(".map").get(0),
+		map = new google.maps.Map($(".map").get(0),
 				mapOptions);
+				
+    	map.data.loadGeoJson(placesOfInterest);
+    	map.data.setStyle(function(feature) {
+    		var icon = {};
+    		var name = feature.getId();
+    		icon.url = "images/"+feature.getProperty('icon');
+    		if (icon.url == "images/null"){
+    			icon.url = "images/Map-Marker-Ball-Azure-icon.png";
+    		};
+    		icon.scaledSize= {width:50, height:50};
+    		
+    		return ({
+    			icon: icon,
+    			title: name
+    		});
+    	});
+    
 	}
 }
 

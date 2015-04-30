@@ -24,6 +24,7 @@ import com.almende.eve.protocol.jsonrpc.annotation.Name;
 import com.almende.eve.protocol.jsonrpc.annotation.Optional;
 import com.almende.eve.protocol.jsonrpc.annotation.Sender;
 import com.almende.eve.protocol.jsonrpc.formats.Params;
+import com.almende.util.URIUtil;
 import com.almende.util.callback.AsyncCallback;
 import com.almende.util.jackson.JOM;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -32,7 +33,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * The Class ResourceProxy.
  */
-@Path("/geojson")
+@Path("/")
 @Access(AccessType.PUBLIC)
 public class ResourceProxy extends Agent {
 	static ResourceProxy SINGLETON = null;
@@ -71,12 +72,28 @@ public class ResourceProxy extends Agent {
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
 	 */
+	@Path("geojson")
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getJson() throws IOException {
 		return Response.ok(getAllGeoJson(false)).build();
 	}
 
+	/**
+	 * Gets the points of interest
+	 *
+	 * @return the points of interest
+	 * @throws IOException
+	 *             Signals that an I/O exception has occurred.
+	 */
+	@Path("poi")
+	@GET
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPoI() throws IOException {
+		FeatureCollection fc = callSync(URIUtil.create("local:demo"),"getPointsOfInterest",null,FeatureCollection.class);
+		return Response.ok(fc).build();
+	}
+	
 	/**
 	 * Gets the all geo json.
 	 *

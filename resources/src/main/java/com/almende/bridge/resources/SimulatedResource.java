@@ -7,7 +7,9 @@ package com.almende.bridge.resources;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,6 +31,7 @@ import com.almende.util.TypeUtil;
 import com.almende.util.URIUtil;
 import com.almende.util.callback.AsyncCallback;
 import com.almende.util.jackson.JOM;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -38,7 +41,7 @@ public class SimulatedResource extends Agent {
 	private static final Logger							LOG			= Logger.getLogger(SimulatedResource.class
 																			.getName());
 	private static final URI							NAVAGENT	= URIUtil
-																			.create("http://localhost:8080/agents/navigation");
+																			.create("http://localhost:8881/agents/navigation");
 
 	private DateTime									routeBase	= DateTime
 																			.now();
@@ -54,6 +57,8 @@ public class SimulatedResource extends Agent {
 			4.479624, 51.908913, 0, 0								};
 	private static final TypeUtil<ArrayList<double[]>>	ROUTETYPE	= new TypeUtil<ArrayList<double[]>>() {};
 
+	private ObjectNode									properties	= JOM.createObjectNode();
+
 	public void onReady() {
 		register();
 	}
@@ -68,6 +73,47 @@ public class SimulatedResource extends Agent {
 		} catch (Exception e) {
 			LOG.log(Level.WARNING, "Error registering agent", e);
 		}
+	}
+
+	/**
+	 * Gets the properties.
+	 *
+	 * @return the properties
+	 */
+	public ObjectNode getProperties() {
+		return properties;
+	}
+
+	/**
+	 * Sets the properties.
+	 *
+	 * @param properties
+	 *            the new properties
+	 */
+	public void setProperties(ObjectNode properties) {
+		this.properties = properties;
+	}
+
+	/**
+	 * Gets the res type.
+	 *
+	 * @return the res type
+	 */
+	public String getResType() {
+		if (properties.has("resType")) {
+			return properties.get("resType").asText();
+		}
+		return "<unknown>";
+	}
+
+	/**
+	 * Sets the res type.
+	 *
+	 * @param type
+	 *            the new res type
+	 */
+	public void setResType(String type) {
+		properties.put("resType", type);
 	}
 
 	/**
@@ -145,6 +191,21 @@ public class SimulatedResource extends Agent {
 		return getEta().toString();
 	}
 
+	private void addProperties(Feature feature) {
+		Iterator<Entry<String, JsonNode>> iter = properties.fields();
+		while (iter.hasNext()) {
+			Entry<String, JsonNode> field = iter.next();
+			feature.setProperty(field.getKey(), field.getValue().asText());
+		}
+	}
+
+	private void addTaskProperties(Feature feature) {
+		if (route != null) {
+			// TODO: add taskTitle,taskAssigner,taskAssignmentDate,taskStatus
+
+		}
+	}
+
 	/**
 	 * Gets the geo json description of this Resource.
 	 *
@@ -157,7 +218,7 @@ public class SimulatedResource extends Agent {
 			@Optional @Name("includeTrack") Boolean incTrack) {
 
 		getCurrentLocation();
-		
+
 		final FeatureCollection fc = new FeatureCollection();
 		fc.setProperty("id", getId());
 
@@ -167,7 +228,10 @@ public class SimulatedResource extends Agent {
 		originPoint.setCoordinates(new LngLatAlt(geoJsonPos[0], geoJsonPos[1]));
 		origin.setGeometry(originPoint);
 		origin.setProperty("type", "currentLocation");
-
+		addProperties(origin);
+		addTaskProperties(origin);
+		//TODO: add resource icon
+		
 		fc.add(origin);
 
 		if (route != null) {
@@ -180,6 +244,8 @@ public class SimulatedResource extends Agent {
 				}
 				track.setGeometry(tracksteps);
 				track.setProperty("type", "route");
+				addProperties(track);
+				addTaskProperties(track);
 				fc.add(track);
 			}
 			final Feature goal = new Feature();
@@ -190,7 +256,10 @@ public class SimulatedResource extends Agent {
 			goal.setGeometry(goalPoint);
 			goal.setProperty("type", "targetLocation");
 			goal.setProperty("eta", getEtaString());
-
+			addProperties(goal);
+			addTaskProperties(goal);
+			//TODO: add target icon (or skip because it's point of interest)
+			
 			fc.add(goal);
 		}
 

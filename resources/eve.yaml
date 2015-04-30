@@ -7,13 +7,13 @@ templates:
          class: com.almende.eve.scheduling.SimpleSchedulerBuilder
       transports:
       -  class: com.almende.eve.transport.http.HttpTransportBuilder
-         servletUrl: http://127.0.0.1:8081/agents/
+         servletUrl: http://127.0.0.1:8882/agents/
          servletLauncher: JettyLauncher
          servletClass: com.almende.eve.transport.http.DebugServlet
          doShortcut: true
          doAuthentication: false
          jetty: 
-            port: 8081
+            port: 8882
             cors: true
 
 agents:
