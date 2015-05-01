@@ -23,9 +23,6 @@ agents:
 -  id: proxy
    class: com.almende.bridge.resources.ResourceProxy
    extends: templates/defaultAgent
--  id: navTest
-   class: com.almende.bridge.resources.SimulatedResource
-   extends: templates/defaultAgent
 -  id: demo
    class: com.almende.bridge.resources.DemoGenerator
    extends: templates/defaultAgent

@@ -12,6 +12,7 @@ import java.util.List;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
@@ -50,7 +51,6 @@ public class ResourceProxy extends Agent {
 		} else {
 			setConfig(SINGLETON.getConfig());
 		}
-		
 	}
 	
 	/**
@@ -68,6 +68,10 @@ public class ResourceProxy extends Agent {
 	/**
 	 * Gets the all geo json.
 	 *
+	 * @param filter
+	 *            the filter
+	 * @param track
+	 *            the track
 	 * @return the all geo json
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
@@ -75,13 +79,18 @@ public class ResourceProxy extends Agent {
 	@Path("geojson")
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getJson() throws IOException {
-		return Response.ok(getAllGeoJson(false)).build();
+	public Response getJson(@QueryParam("filter") String filter, @QueryParam("includeTrack") String track) throws IOException {
+		final Params params = new Params();
+		params.add("asaFilter", filter!=null?Boolean.valueOf(filter):false);
+		params.add("includeTrack", track!=null?Boolean.valueOf(track):false);
+		return Response.ok(getAllGeoJson(params)).build();
 	}
 
 	/**
-	 * Gets the points of interest
+	 * Gets the points of interest.
 	 *
+	 * @param filter
+	 *            the filter
 	 * @return the points of interest
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
@@ -89,26 +98,25 @@ public class ResourceProxy extends Agent {
 	@Path("poi")
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getPoI() throws IOException {
-		FeatureCollection fc = callSync(URIUtil.create("local:demo"),"getPointsOfInterest",null,FeatureCollection.class);
+	public Response getPoI(@QueryParam("filter") String filter) throws IOException {
+		final Params params = new Params();
+		params.add("asaFilter", filter!=null?Boolean.valueOf(filter):false);
+		final FeatureCollection fc = callSync(URIUtil.create("local:demo"),"getPointsOfInterest",params,FeatureCollection.class);
 		return Response.ok(fc).build();
 	}
 	
 	/**
 	 * Gets the all geo json.
 	 *
-	 * @param incTrack
-	 *            the inc track
+	 * @param params
+	 *            the params
 	 * @return the all geo json
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
 	 */
 	public FeatureCollection getAllGeoJson(
-			@Optional @Name("includeTrack") Boolean incTrack)
+			@Optional @Name("params") ObjectNode params)
 			throws IOException {
-		final Params params = new Params();
-		params.add("includeTrack", incTrack != null && incTrack ? true : false);
-
 		final ArrayList<FeatureCollection> result = new ArrayList<FeatureCollection>();
 		synchronized (neighbors) {
 			for (URI uri : neighbors) {

@@ -20,23 +20,32 @@ import org.geojson.LngLatAlt;
 import org.geojson.Point;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
+import org.joda.time.Period;
+import org.joda.time.format.PeriodFormatter;
+import org.joda.time.format.PeriodFormatterBuilder;
 
+import com.almende.bridge.resources.plans.Evac;
+import com.almende.bridge.resources.plans.Plan;
 import com.almende.eve.agent.Agent;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
+import com.almende.eve.protocol.jsonrpc.annotation.Namespace;
 import com.almende.eve.protocol.jsonrpc.annotation.Optional;
+import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
 import com.almende.eve.protocol.jsonrpc.formats.Params;
 import com.almende.util.TypeUtil;
 import com.almende.util.URIUtil;
 import com.almende.util.callback.AsyncCallback;
 import com.almende.util.jackson.JOM;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * The Class SimulatedResource.
  */
+@Access(AccessType.PUBLIC)
 public class SimulatedResource extends Agent {
 	private static final Logger							LOG			= Logger.getLogger(SimulatedResource.class
 																			.getName());
@@ -49,6 +58,8 @@ public class SimulatedResource extends Agent {
 	private int											index		= 0;
 	private Duration									eta			= null;
 
+	private Plan										plan		= null;
+
 	// other: {"lat":52.069451, "lon":4.640714}
 	// work: {"lat":51.908913, "lon":4.479624}
 	private double[]									geoJsonPos	= new double[] {
@@ -56,6 +67,23 @@ public class SimulatedResource extends Agent {
 	private double[]									geoJsonGoal	= new double[] {
 			4.479624, 51.908913, 0, 0								};
 	private static final TypeUtil<ArrayList<double[]>>	ROUTETYPE	= new TypeUtil<ArrayList<double[]>>() {};
+
+	private static final JSONRequest					NEXTLEGREQ	= new JSONRequest(
+																			"planNextLeg",
+																			null);
+	private static final JSONRequest					REPEATREQ	= new JSONRequest(
+																			"repeat",
+																			null);
+
+	private static final PeriodFormatter				MINANDSECS	= new PeriodFormatterBuilder()
+																			.printZeroAlways()
+																			.appendMinutes()
+																			.appendSeparator(
+																					":")
+																			.minimumPrintedDigits(
+																					2)
+																			.appendSeconds()
+																			.toFormatter();
 
 	private ObjectNode									properties	= JOM.createObjectNode();
 
@@ -73,6 +101,17 @@ public class SimulatedResource extends Agent {
 		} catch (Exception e) {
 			LOG.log(Level.WARNING, "Error registering agent", e);
 		}
+	}
+
+	/**
+	 * Gets the plan.
+	 *
+	 * @return the plan
+	 */
+	@Namespace("plan")
+	@JsonIgnore
+	public Plan getPlan() {
+		return plan;
 	}
 
 	/**
@@ -100,8 +139,8 @@ public class SimulatedResource extends Agent {
 	 * @return the res type
 	 */
 	public String getResType() {
-		if (properties.has("resType")) {
-			return properties.get("resType").asText();
+		if (properties.has("resourceType")) {
+			return properties.get("resourceType").asText();
 		}
 		return "<unknown>";
 	}
@@ -113,7 +152,7 @@ public class SimulatedResource extends Agent {
 	 *            the new res type
 	 */
 	public void setResType(String type) {
-		properties.put("resType", type);
+		properties.put("resourceType", type);
 	}
 
 	/**
@@ -200,9 +239,11 @@ public class SimulatedResource extends Agent {
 	}
 
 	private void addTaskProperties(Feature feature) {
-		if (route != null) {
+		if (plan != null) {
 			// TODO: add taskTitle,taskAssigner,taskAssignmentDate,taskStatus
-
+			feature.setProperty("taskTitle", plan.getCurrentTitle());
+			feature.setProperty("taskStatus", plan.getStatus());
+			feature.setProperty("taskLocations", plan.getLocations());
 		}
 	}
 
@@ -230,8 +271,8 @@ public class SimulatedResource extends Agent {
 		origin.setProperty("type", "currentLocation");
 		addProperties(origin);
 		addTaskProperties(origin);
-		//TODO: add resource icon
-		
+		// TODO: add resource icon
+
 		fc.add(origin);
 
 		if (route != null) {
@@ -239,8 +280,14 @@ public class SimulatedResource extends Agent {
 				final Feature track = new Feature();
 				track.setId(getId());
 				final LineString tracksteps = new LineString();
+				tracksteps.add(new LngLatAlt(geoJsonPos[0], geoJsonPos[1]));
+				final long millis = new Duration(routeBase, DateTime.now())
+						.getMillis();
+
 				for (double[] step : route) {
-					tracksteps.add(new LngLatAlt(step[0], step[1]));
+					if (step[3] > millis) {
+						tracksteps.add(new LngLatAlt(step[0], step[1]));
+					}
 				}
 				track.setGeometry(tracksteps);
 				track.setProperty("type", "route");
@@ -256,10 +303,19 @@ public class SimulatedResource extends Agent {
 			goal.setGeometry(goalPoint);
 			goal.setProperty("type", "targetLocation");
 			goal.setProperty("eta", getEtaString());
+			if (getEta().isAfterNow()) {
+				Period period = new Duration(DateTime.now(), getEta())
+						.toPeriod();
+				goal.setProperty("timeRemaining", period.toString(MINANDSECS));
+				goal.setProperty("etaShort", getEta().toString("kk:mm:ss"));
+			} else {
+				goal.setProperty("minutesRemaining", 0);
+				goal.setProperty("etaShort", "00:00:00");
+			}
+			goal.setProperty("targetId", plan.getTargetLocation().getId());
 			addProperties(goal);
 			addTaskProperties(goal);
-			//TODO: add target icon (or skip because it's point of interest)
-			
+
 			fc.add(goal);
 		}
 
@@ -288,9 +344,125 @@ public class SimulatedResource extends Agent {
 	@Access(AccessType.PUBLIC)
 	public void setGeoJsonLocation(@Name("pos") double[] pos) {
 		geoJsonPos = pos;
-		if (route != null) {
+	}
+
+	/**
+	 * Sets the plan.
+	 *
+	 * @param planName
+	 *            the plan name
+	 * @param params
+	 *            the params
+	 * @param repeat
+	 *            the repeat
+	 * @throws IOException
+	 *             Signals that an I/O exception has occurred.
+	 */
+	public void setPlan(@Name("plan") String planName,
+			@Name("params") ObjectNode params,
+			@Optional @Name("repeat") Boolean repeat) throws IOException {
+		if ("Evac".equals(planName)) {
+			final Params parms = new Params();
+			parms.add("type", "hospital");
+			parms.add("count", params.get("hospital").asInt());
+			final Feature hospital = callSync(URIUtil.create("local:demo"),
+					"getPoI", parms, Feature.class);
+
+			final Params parms2 = new Params();
+			parms2.add("type", "rvpAmbu");
+			parms2.add("count", params.get("rvpAmbu").asInt());
+			final Feature pickup = callSync(URIUtil.create("local:demo"),
+					"getPoI", parms2, Feature.class);
+
+			plan = new Evac(getScheduler(), hospital, pickup);
+
+			plan.onStateChange("toPickup", NEXTLEGREQ);
+			plan.onStateChange("toDropOff", NEXTLEGREQ);
+			if (repeat != null && repeat) {
+				plan.onStateChange("finished", REPEATREQ);
+			}
+			plan.arrival();
+
+		} else if ("Goto".equals(planName)) {
 
 		}
+	}
+
+	/**
+	 * Repeat.
+	 */
+	public void repeat() {
+		if (plan != null) {
+			plan.doStateChange("init");
+			plan.arrival();
+		}
+	}
+
+	/**
+	 * Plan next leg.
+	 *
+	 * @throws IOException
+	 *             Signals that an I/O exception has occurred.
+	 */
+	public void planNextLeg() throws IOException {
+		if (plan != null) {
+			Feature goal = plan.getTargetLocation();
+			if (goal != null) {
+				Point loc = (Point) goal.getGeometry();
+
+				getCurrentLocation();
+				geoJsonGoal[0] = loc.getCoordinates().getLongitude();
+				geoJsonGoal[1] = loc.getCoordinates().getLatitude();
+				planRoute();
+			}
+		}
+	}
+
+	/**
+	 * Check arrival.
+	 */
+	public void checkArrival() {
+		if (plan != null && getEta().isBeforeNow()) {
+			plan.arrival();
+		} else {
+			schedule("checkArrival", null, getEta());
+		}
+	}
+
+	private void planRoute() throws IOException {
+		final Params params = new Params();
+		params.put("startLat", geoJsonPos[1]);
+		params.put("startLon", geoJsonPos[0]);
+		params.put("endLat", geoJsonGoal[1]);
+		params.put("endLon", geoJsonGoal[0]);
+
+		call(NAVAGENT, "getRoute", params, new AsyncCallback<ObjectNode>() {
+
+			/*
+			 * (non-Javadoc)
+			 * @see
+			 * com.almende.util.callback.AsyncCallback#onSuccess(java.lang.Object
+			 * )
+			 */
+			@Override
+			public void onSuccess(ObjectNode result) {
+				routeBase = DateTime.now();
+				route = ROUTETYPE.inject(result.get("route"));
+				index = 0;
+				eta = new Duration(result.get("millis").asLong());
+
+				checkArrival();
+			}
+
+			@Override
+			public void onFailure(Exception exception) {
+				LOG.log(Level.WARNING, "Couldn't get route:", exception);
+				route = null;
+				index = 0;
+				eta = new Duration(0);
+				routeBase = DateTime.now();
+			}
+		});
 	}
 
 	/**
@@ -308,30 +480,6 @@ public class SimulatedResource extends Agent {
 		getCurrentLocation();
 		geoJsonGoal[0] = goal.get("lon").asDouble();
 		geoJsonGoal[1] = goal.get("lat").asDouble();
-
-		final Params params = new Params();
-		params.put("startLat", geoJsonPos[1]);
-		params.put("startLon", geoJsonPos[0]);
-		params.put("endLat", geoJsonGoal[1]);
-		params.put("endLon", geoJsonGoal[0]);
-
-		call(NAVAGENT, "getRoute", params, new AsyncCallback<ObjectNode>() {
-			@Override
-			public void onSuccess(ObjectNode result) {
-				routeBase = DateTime.now();
-				route = ROUTETYPE.inject(result.get("route"));
-				index = 0;
-				eta = new Duration(result.get("millis").asLong());
-			}
-
-			@Override
-			public void onFailure(Exception exception) {
-				LOG.log(Level.WARNING, "Couldn't get route:", exception);
-				route = null;
-				index = 0;
-				eta = new Duration(0);
-				routeBase = DateTime.now();
-			}
-		});
+		planRoute();
 	}
 }

@@ -94,10 +94,13 @@ var parse = function (json){
 		});
 	}
 }
-var placesOfInterest = "http://localhost:8882/rs/poi";
+var baseUrl = window.location.href.replace("tools/","").replace("8883","8882").replace("8080","8882");
+
+var placesOfInterest = baseUrl+"rs/poi";
+var resources = baseUrl+"agents/proxy/";
 var update_rm = function(){
 	$.ajax({
-		url:"http://localhost:8882/agents/proxy/",
+		url:resources,
 		processdata:false,
 		crossDomain: true,
 		data:'{"method":"getAllLocations","id":1,"jsonrpc":"2.0","params":{}}',

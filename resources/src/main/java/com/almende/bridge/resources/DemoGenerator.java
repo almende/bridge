@@ -17,12 +17,14 @@ import org.geojson.Feature;
 import org.geojson.FeatureCollection;
 import org.geojson.LngLatAlt;
 import org.geojson.Point;
+import org.joda.time.DateTime;
 
 import com.almende.eve.agent.Agent;
 import com.almende.eve.agent.AgentConfig;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
+import com.almende.eve.protocol.jsonrpc.annotation.Optional;
 import com.almende.util.jackson.JOM;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -74,6 +76,30 @@ public class DemoGenerator extends Agent {
 		storePoIproperties(key, node);
 	}
 
+	/**
+	 * Gets the po i.
+	 *
+	 * @param type
+	 *            the type
+	 * @param i
+	 *            the i
+	 * @return the po i
+	 */
+	public Feature getPoI(@Name("type") String type, @Name("count") int i){
+		final Feature feature = new Feature();
+		feature.setProperty("type", type);
+		final ObjectNode node = properties.get(type + "-" + i);
+		if (node != null) {
+			feature.setId(node.get("label").asText());
+			feature.setProperty("icon", node.get("icon").asText());
+		}
+		final Point point = new Point();
+		final double[] loc = placesOfInterest.get(type).get(i);
+		point.setCoordinates(new LngLatAlt(loc[0], loc[1]));
+		feature.setGeometry(point);
+		return feature;
+	}
+	
 	/**
 	 * Creates the places of interest.
 	 */
@@ -196,6 +222,8 @@ public class DemoGenerator extends Agent {
 		for (int i = 0; i < nofAgents; i++) {
 			SimulatedResource agent = new SimulatedResource();
 			AgentConfig agentConfig = new AgentConfig();
+			agentConfig
+					.setId(type + "-" + i + "-" + DateTime.now().getMillis());
 			agentConfig.setAll((ObjectNode) getConfig().get("simAgents"));
 			agent.setConfig(agentConfig);
 			List<double[]> stations = placesOfInterest.get(at);
@@ -222,8 +250,8 @@ public class DemoGenerator extends Agent {
 
 		// TODO: this should be the other way around: resources subscribing to
 		// goals.
-		if (!placesOfInterest.containsKey(at)){
-			throw new IllegalArgumentException("Unknown location given:"+at);
+		if (!placesOfInterest.containsKey(at)) {
+			throw new IllegalArgumentException("Unknown location given:" + at);
 		}
 
 		final List<SimulatedResource> agentList = agents.get(type);
@@ -246,12 +274,37 @@ public class DemoGenerator extends Agent {
 		}
 	}
 
+	private boolean filter(boolean operational, String type, int i) {
+		if (!operational)
+			return true;
+
+		Map<String,Integer> allowedTypes = new HashMap<String,Integer>();
+		allowedTypes.put("fireStation",2);
+		allowedTypes.put("policeStation",2);
+		allowedTypes.put("hospital",2);
+		allowedTypes.put("rvpFire",1);
+		allowedTypes.put("rvpAmbu",1);
+		allowedTypes.put("incident",1);
+
+		if (allowedTypes.containsKey(type)) {
+			return allowedTypes.get(type) > i;
+		}
+		return false;
+	}
+
 	/**
 	 * Gets the points of interest.
 	 *
+	 * @param asaFilter
+	 *            the asa filter
 	 * @return the points of interest
 	 */
-	public FeatureCollection getPointsOfInterest() {
+	public FeatureCollection getPointsOfInterest(
+			@Optional @Name("asaFilter") Boolean asaFilter) {
+		boolean filter = false;
+		if (asaFilter != null && asaFilter) {
+			filter = true;
+		}
 		final FeatureCollection fc = new FeatureCollection();
 		fc.setProperty("id", "PointsOfInterest");
 
@@ -259,18 +312,9 @@ public class DemoGenerator extends Agent {
 			String type = entry.getKey();
 			List<double[]> list = entry.getValue();
 			for (int i = 0; i < list.size(); i++) {
-				final Feature feature = new Feature();
-				feature.setProperty("type", type);
-				ObjectNode node = properties.get(type + "-" + i);
-				if (node != null) {
-					feature.setId(node.get("label").asText());
-					feature.setProperty("icon", node.get("icon").asText());
+				if (filter(filter, type, i)) {
+					fc.add(getPoI(type,i));
 				}
-				Point point = new Point();
-				point.setCoordinates(new LngLatAlt(list.get(i)[0],
-						list.get(i)[1]));
-				feature.setGeometry(point);
-				fc.add(feature);
 			}
 		}
 
