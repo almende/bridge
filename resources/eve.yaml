@@ -23,6 +23,9 @@ agents:
 -  id: proxy
    class: com.almende.bridge.resources.ResourceProxy
    extends: templates/defaultAgent
+-  id: edxl
+   class: com.almende.bridge.edxl.EDXLAdapterAgent
+   extends: templates/defaultAgent
 -  id: demo
    class: com.almende.bridge.resources.DemoGenerator
    extends: templates/defaultAgent

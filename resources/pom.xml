@@ -18,6 +18,7 @@
 		<maven.shade.version>2.3</maven.shade.version>
 		<cors.version>2.4</cors.version>
 		<jackson.version>2.4.1</jackson.version>
+		<jdom.version>1.1</jdom.version>
 	</properties>
 
 	<dependencies>
@@ -35,6 +36,11 @@
 			<groupId>com.fasterxml.jackson.jaxrs</groupId>
 			<artifactId>jackson-jaxrs-json-provider</artifactId>
 			<version>${jackson.version}</version>
+		</dependency>
+				<dependency>
+			<groupId>jdom</groupId>
+			<artifactId>jdom</artifactId>
+			<version>${jdom.version}</version>
 		</dependency>
 	</dependencies>
 

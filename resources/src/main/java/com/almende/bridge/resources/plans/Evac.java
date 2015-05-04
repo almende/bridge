@@ -20,28 +20,29 @@ public class Evac extends Plan {
 		init, toPickup, pickup, toDropOff, dropOff, finished
 	};
 
-	private Feature							hospital		= null;
-	private Feature							pickupPoint		= null;
+	private Feature						hospital		= null;
+	private Feature						pickupPoint		= null;
 	// TODO: give a delay based on how busy the location is!
-	private long							pickupDelay		= 160000;
-	private long							dropOffDelay	= 120000;
+	private long						pickupDelay		= 160000;
+	private long						dropOffDelay	= 120000;
 
-	private static final String[]			DESCRIPTIONS	= {
-			"Task not started", "Proceed to rendevous point", "Pickup patient",
+	private static final String			TITLE			= "Evacuate wounded to hospital";
+	private static final String[]		DESCRIPTIONS	= { "Task not started",
+			"Proceed to rendezvous point", "Pickup patient",
 			"Proceed to hospital", "Drop off patient", "Task finished" };
 
-	private static final JSONRequest		pickupTask		= new JSONRequest(
-																	"plan.doStateChange",
-																	new Params(
-																			"state",
-																			"toDropOff"));
-	private static final JSONRequest		dropOffTask		= new JSONRequest(
-																	"plan.doStateChange",
-																	new Params(
-																			"state",
-																			"finished"));
+	private static final JSONRequest	pickupTask		= new JSONRequest(
+																"plan.doStateChange",
+																new Params(
+																		"state",
+																		"toDropOff"));
+	private static final JSONRequest	dropOffTask		= new JSONRequest(
+																"plan.doStateChange",
+																new Params(
+																		"state",
+																		"finished"));
 
-	private STATE							status			= STATE.init;
+	private STATE						status			= STATE.init;
 
 	/**
 	 * Instantiates a new evac.
@@ -53,12 +54,17 @@ public class Evac extends Plan {
 	 * @param pickupPoint
 	 *            the pickup point
 	 */
-	public Evac(Scheduler scheduler, Feature hospital, Feature pickupPoint){
+	public Evac(Scheduler scheduler, Feature hospital, Feature pickupPoint) {
 		super(scheduler);
-		this.hospital=hospital;
-		this.pickupPoint=pickupPoint;
+		this.hospital = hospital;
+		this.pickupPoint = pickupPoint;
 	}
-	
+
+	@Override
+	public String getTitle() {
+		return TITLE;
+	}
+
 	@Override
 	public String getCurrentTitle() {
 		return DESCRIPTIONS[status.ordinal()];
@@ -68,10 +74,10 @@ public class Evac extends Plan {
 	public String getStatus() {
 		return status.toString();
 	}
-	
+
 	@Override
-	public String[] getLocations(){
-		return new String[]{hospital.getId(),pickupPoint.getId()};
+	public String[] getLocations() {
+		return new String[] { hospital.getId(), pickupPoint.getId() };
 	}
 
 	@Override
@@ -90,7 +96,7 @@ public class Evac extends Plan {
 			doStateChange("pickup");
 		} else if (status.equals(STATE.toDropOff)) {
 			doStateChange("dropOff");
-		} else if (status.equals(STATE.init)){
+		} else if (status.equals(STATE.init)) {
 			doStateChange("toPickup");
 		}
 	}

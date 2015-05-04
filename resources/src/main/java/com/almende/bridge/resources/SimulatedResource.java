@@ -24,7 +24,9 @@ import org.joda.time.Period;
 import org.joda.time.format.PeriodFormatter;
 import org.joda.time.format.PeriodFormatterBuilder;
 
+import com.almende.bridge.oldDataStructs.Location;
 import com.almende.bridge.resources.plans.Evac;
+import com.almende.bridge.resources.plans.Goto;
 import com.almende.bridge.resources.plans.Plan;
 import com.almende.eve.agent.Agent;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
@@ -38,6 +40,7 @@ import com.almende.util.TypeUtil;
 import com.almende.util.URIUtil;
 import com.almende.util.callback.AsyncCallback;
 import com.almende.util.jackson.JOM;
+import com.almende.util.uuid.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -47,54 +50,68 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  */
 @Access(AccessType.PUBLIC)
 public class SimulatedResource extends Agent {
-	private static final Logger							LOG			= Logger.getLogger(SimulatedResource.class
-																			.getName());
-	private static final URI							NAVAGENT	= URIUtil
-																			.create("http://localhost:8881/agents/navigation");
+	private static final Logger	LOG			= Logger.getLogger(SimulatedResource.class
+													.getName());
+	private static final URI	NAVAGENT	= URIUtil
+													.create("http://localhost:8881/agents/navigation");
 
-	private DateTime									routeBase	= DateTime
-																			.now();
-	private List<double[]>								route		= null;
-	private int											index		= 0;
-	private Duration									eta			= null;
+	private enum DEPLOYMENTSTATE {
+		Unassigned, Assigned, Active, Withdrawn, Post
+	}
 
-	private Plan										plan		= null;
+	private DEPLOYMENTSTATE								deploymentState	= DEPLOYMENTSTATE.Unassigned;
+
+	private UUID										guid			= new UUID();
+
+	private DateTime									routeBase		= DateTime
+																				.now();
+	private List<double[]>								route			= null;
+	private int											index			= 0;
+	private Duration									eta				= null;
+
+	private Plan										plan			= null;
 
 	// other: {"lat":52.069451, "lon":4.640714}
 	// work: {"lat":51.908913, "lon":4.479624}
-	private double[]									geoJsonPos	= new double[] {
-			4.479624, 51.908913, 0, 0								};
-	private double[]									geoJsonGoal	= new double[] {
-			4.479624, 51.908913, 0, 0								};
-	private static final TypeUtil<ArrayList<double[]>>	ROUTETYPE	= new TypeUtil<ArrayList<double[]>>() {};
+	private double[]									geoJsonPos		= new double[] {
+			4.479624, 51.908913, 0, 0									};
+	private double[]									geoJsonGoal		= new double[] {
+			4.479624, 51.908913, 0, 0									};
+	private static final TypeUtil<ArrayList<double[]>>	ROUTETYPE		= new TypeUtil<ArrayList<double[]>>() {};
 
-	private static final JSONRequest					NEXTLEGREQ	= new JSONRequest(
-																			"planNextLeg",
-																			null);
-	private static final JSONRequest					REPEATREQ	= new JSONRequest(
-																			"repeat",
-																			null);
+	private static final JSONRequest					NEXTLEGREQ		= new JSONRequest(
+																				"planNextLeg",
+																				null);
+	private static final JSONRequest					REPEATREQ		= new JSONRequest(
+																				"repeat",
+																				null);
+	private static final JSONRequest					STOPREQ			= new JSONRequest(
+																				"stop",
+																				null);
 
-	private static final PeriodFormatter				MINANDSECS	= new PeriodFormatterBuilder()
-																			.printZeroAlways()
-																			.appendMinutes()
-																			.appendSeparator(
-																					":")
-																			.minimumPrintedDigits(
-																					2)
-																			.appendSeconds()
-																			.toFormatter();
+	private static final PeriodFormatter				MINANDSECS		= new PeriodFormatterBuilder()
+																				.printZeroAlways()
+																				.appendMinutes()
+																				.appendSeparator(
+																						":")
+																				.minimumPrintedDigits(
+																						2)
+																				.appendSeconds()
+																				.toFormatter();
 
-	private ObjectNode									properties	= JOM.createObjectNode();
+	private ObjectNode									properties		= JOM.createObjectNode();
 
+	/*
+	 * (non-Javadoc)
+	 * @see com.almende.eve.agent.Agent#onReady()
+	 */
 	public void onReady() {
 		register();
 	}
 
 	/**
-	 * Register agent at Proxy
+	 * Register agent at Proxy.
 	 */
-	@Access(AccessType.PUBLIC)
 	public void register() {
 		try {
 			call(new URI("local:proxy"), "register", null);
@@ -156,11 +173,10 @@ public class SimulatedResource extends Agent {
 	}
 
 	/**
-	 * Gets the current location of this resource
+	 * Gets the current location of this resource.
 	 *
 	 * @return the current location
 	 */
-	@Access(AccessType.PUBLIC)
 	public synchronized ObjectNode getCurrentLocation() {
 		final ObjectNode result = JOM.createObjectNode();
 		if (route != null) {
@@ -215,7 +231,7 @@ public class SimulatedResource extends Agent {
 	 *
 	 * @return the eta
 	 */
-	@Access(AccessType.PUBLIC)
+
 	public DateTime getEta() {
 		return routeBase.plus(eta);
 	}
@@ -225,7 +241,7 @@ public class SimulatedResource extends Agent {
 	 *
 	 * @return the eta
 	 */
-	@Access(AccessType.PUBLIC)
+
 	public String getEtaString() {
 		return getEta().toString();
 	}
@@ -254,7 +270,7 @@ public class SimulatedResource extends Agent {
 	 *            Should the track data be included?
 	 * @return the geo json
 	 */
-	@Access(AccessType.PUBLIC)
+
 	public FeatureCollection getGeoJson(
 			@Optional @Name("includeTrack") Boolean incTrack) {
 
@@ -330,7 +346,7 @@ public class SimulatedResource extends Agent {
 	 * @param lon
 	 *            the lon
 	 */
-	@Access(AccessType.PUBLIC)
+
 	public void setLocation(@Name("lat") double lat, @Name("lon") double lon) {
 		setGeoJsonLocation(new double[] { lon, lat, 0, 0 });
 	}
@@ -341,7 +357,7 @@ public class SimulatedResource extends Agent {
 	 * @param pos
 	 *            the new geo json location
 	 */
-	@Access(AccessType.PUBLIC)
+
 	public void setGeoJsonLocation(@Name("pos") double[] pos) {
 		geoJsonPos = pos;
 	}
@@ -378,13 +394,24 @@ public class SimulatedResource extends Agent {
 
 			plan.onStateChange("toPickup", NEXTLEGREQ);
 			plan.onStateChange("toDropOff", NEXTLEGREQ);
+		} else if ("Goto".equals(planName)) {
+			final Params parms = new Params();
+			parms.add("type", params.get("type").asText());
+			parms.add("count", params.get("index").asInt());
+			final Feature feature = callSync(URIUtil.create("local:demo"),
+					"getPoI", parms, Feature.class);
+
+			plan = new Goto(getScheduler(), feature);
+			plan.onStateChange("travel", NEXTLEGREQ);
+		}
+		if (plan != null) {
 			if (repeat != null && repeat) {
 				plan.onStateChange("finished", REPEATREQ);
+			} else {
+				plan.onStateChange("finished", STOPREQ);
 			}
+			deploymentState = DEPLOYMENTSTATE.Active;
 			plan.arrival();
-
-		} else if ("Goto".equals(planName)) {
-
 		}
 	}
 
@@ -396,6 +423,14 @@ public class SimulatedResource extends Agent {
 			plan.doStateChange("init");
 			plan.arrival();
 		}
+	}
+
+	/**
+	 * Stop.
+	 */
+	public void stop() {
+		deploymentState = DEPLOYMENTSTATE.Unassigned;
+		plan = null;
 	}
 
 	/**
@@ -473,7 +508,7 @@ public class SimulatedResource extends Agent {
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
 	 */
-	@Access(AccessType.PUBLIC)
+
 	public synchronized void setGoal(@Name("goal") ObjectNode goal)
 			throws IOException {
 
@@ -481,5 +516,45 @@ public class SimulatedResource extends Agent {
 		geoJsonGoal[0] = goal.get("lon").asDouble();
 		geoJsonGoal[1] = goal.get("lat").asDouble();
 		planRoute();
+	}
+
+	/**
+	 * Request status.
+	 *
+	 * @return the object node
+	 */
+	public ObjectNode requestStatus() {
+		ObjectNode status = JOM.createObjectNode();
+		status.put("name", getId());
+		status.put("id", guid.toString()); // Some global uid, for .NET id
+											// separation.
+		status.put("type", getResType());
+		status.put("deploymentStatus", deploymentState.toString());
+
+		getCurrentLocation();
+		Location location = new Location(new Double(geoJsonPos[1]).toString(),
+				new Double(geoJsonPos[0]).toString(), new Long(DateTime.now()
+						.getMillis()).toString());
+		if (location != null) {
+			status.set("current", JOM.getInstance().valueToTree(location));
+		}
+
+		if (route != null) {
+			Location goal = new Location(new Double(geoJsonGoal[1]).toString(),
+					new Double(geoJsonGoal[0]).toString(), new Long(getEta()
+							.getMillis()).toString());
+			if (goal != null) {
+				status.set("goal", JOM.getInstance().valueToTree(goal));
+			}
+		}
+
+		if (plan != null) {
+			String taskDescription = plan.getTitle() + " ("
+					+ plan.getCurrentTitle() + ")";
+			if (taskDescription != null) {
+				status.put("task", taskDescription);
+			}
+		}
+		return status;
 	}
 }

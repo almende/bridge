@@ -43,6 +43,16 @@ public class ResourceProxy extends Agent {
 
 	
 	/**
+	 * Gets the all resources.
+	 *
+	 * @return the all resources
+	 */
+	public List<URI> getAllResources()  {
+		return neighbors;
+	}
+	
+	
+	/**
 	 * Instantiates a new resource proxy.
 	 */
 	public ResourceProxy(){

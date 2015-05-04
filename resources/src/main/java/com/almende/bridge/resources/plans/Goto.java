@@ -17,6 +17,7 @@ public class Goto extends Plan {
 		init, travel, finished
 	};
 
+	private static final String		TITLE			= "Go towards goal location.";
 	private static final String[]	DESCRIPTIONS	= { "Task not started",
 			"Traveling towards goal", "Task finished" };
 	private STATE					status			= STATE.init;
@@ -45,13 +46,13 @@ public class Goto extends Plan {
 	}
 
 	@Override
-	public String[] getLocations(){
-		if (goal != null){
-			return new String[]{goal.getId()};
+	public String[] getLocations() {
+		if (goal != null) {
+			return new String[] { goal.getId() };
 		}
 		return new String[0];
 	}
-	
+
 	/*
 	 * (non-Javadoc)
 	 * @see com.almende.bridge.resources.plans.Plan#getTargetLocation()
@@ -67,7 +68,11 @@ public class Goto extends Plan {
 	 */
 	@Override
 	public void arrival() {
-		doStateChange(STATE.finished.name());
+		if (status == STATE.travel) {
+			doStateChange(STATE.finished.name());
+		} else {
+			doStateChange(STATE.travel.name());
+		}
 	}
 
 	/*
@@ -88,5 +93,10 @@ public class Goto extends Plan {
 	@Override
 	public String getStatus() {
 		return status.name();
+	}
+
+	@Override
+	public String getTitle() {
+		return TITLE;
 	}
 }

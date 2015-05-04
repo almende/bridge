@@ -22,9 +22,12 @@ import com.almende.eve.scheduling.Scheduler;
  */
 @Access(AccessType.PUBLIC)
 public abstract class Plan {
+
+
 	protected Scheduler							scheduler;
 
-	protected Map<String, List<JSONRequest>>	triggers	= new HashMap<String, List<JSONRequest>>();
+	protected Map<String, List<JSONRequest>>	triggers		= new HashMap<String, List<JSONRequest>>();
+
 
 	/**
 	 * Instantiates a new plan.
@@ -56,7 +59,7 @@ public abstract class Plan {
 	 * @return the locations
 	 */
 	public abstract String[] getLocations();
-	
+
 	/**
 	 * Arrival.
 	 */
@@ -99,4 +102,12 @@ public abstract class Plan {
 	 * @return the status
 	 */
 	public abstract String getStatus();
+
+	/**
+	 * Gets the global task title.
+	 *
+	 * @return the title
+	 */
+	public abstract String getTitle();
+
 }
