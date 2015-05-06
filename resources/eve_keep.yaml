@@ -1,0 +1,48 @@
+
+templates:
+   defaultAgent:
+      state:
+         class: com.almende.eve.state.memory.MemoryStateBuilder
+      scheduler:
+         class: com.almende.eve.scheduling.SimpleSchedulerBuilder
+      transports:
+      -  class: com.almende.eve.transport.http.HttpTransportBuilder
+         servletUrl: http://127.0.0.1:8882/agents/
+         servletLauncher: JettyLauncher
+         servletClass: com.almende.eve.transport.http.DebugServlet
+         doShortcut: true
+         doAuthentication: false
+         jetty: 
+            port: 8882
+            cors: true
+
+instantiationServices:
+-  class: com.almende.eve.instantiation.InstantiationServiceBuilder
+   state:
+      class: com.almende.eve.state.file.FileStateBuilder
+      id: merlin
+      path: .agents
+
+agents:
+-  id: brawl
+   class: com.almende.bridge.resources.BrawlAgent
+   extends: templates/defaultAgent
+-  id: proxy
+   class: com.almende.bridge.resources.ResourceProxy
+   extends: templates/defaultAgent
+-  id: edxl
+   class: com.almende.bridge.edxl.EDXLAdapterAgent
+   extends: templates/defaultAgent
+-  id: demo
+   class: com.almende.bridge.resources.DemoGenerator
+   extends: templates/defaultAgent
+   simAgents:
+      class: com.almende.bridge.resources.SimulatedResource
+      instantiationService:
+         class: com.almende.eve.instantiation.InstantiationServiceBuilder
+         state:
+            class: com.almende.eve.state.file.FileStateBuilder
+            id: merlin
+            path: .agents
+      extends: templates/defaultAgent
+

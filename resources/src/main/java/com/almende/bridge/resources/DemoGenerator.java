@@ -25,6 +25,7 @@ import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
 import com.almende.eve.protocol.jsonrpc.annotation.Optional;
+import com.almende.util.URIUtil;
 import com.almende.util.jackson.JOM;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -39,6 +40,11 @@ public class DemoGenerator extends Agent {
 	Map<String, List<double[]>>				placesOfInterest	= new HashMap<String, List<double[]>>();
 	Map<String, ObjectNode>					properties			= new HashMap<String, ObjectNode>();
 
+	@Override
+	public void onReady(){
+		createPlacesOfInterest();
+	}
+	
 	/**
 	 * Store places of interest.
 	 *
@@ -85,7 +91,7 @@ public class DemoGenerator extends Agent {
 	 *            the i
 	 * @return the po i
 	 */
-	public Feature getPoI(@Name("type") String type, @Name("count") int i){
+	public Feature getPoI(@Name("type") String type, @Name("count") int i) {
 		final Feature feature = new Feature();
 		feature.setProperty("type", type);
 		final ObjectNode node = properties.get(type + "-" + i);
@@ -99,7 +105,7 @@ public class DemoGenerator extends Agent {
 		feature.setGeometry(point);
 		return feature;
 	}
-	
+
 	/**
 	 * Creates the places of interest.
 	 */
@@ -222,14 +228,19 @@ public class DemoGenerator extends Agent {
 		for (int i = 0; i < nofAgents; i++) {
 			SimulatedResource agent = new SimulatedResource();
 			AgentConfig agentConfig = new AgentConfig();
-			agentConfig
-					.setId(type + "-" + i + "-" + DateTime.now().getMillis());
+			agentConfig.setId(URIUtil.encode(type) + "-" + i + "-"
+					+ DateTime.now().getMillis());
 			agentConfig.setAll((ObjectNode) getConfig().get("simAgents"));
-			agent.setConfig(agentConfig);
 			List<double[]> stations = placesOfInterest.get(at);
-			agent.setGeoJsonLocation(stations.get((int) (Math.random() * stations
-					.size())));
-			agent.setResType(type);
+			agentConfig
+					.set("initLocation",
+							JOM.getInstance()
+									.valueToTree(
+											stations.get((int) (Math.random() * stations
+													.size()))));
+			agentConfig.put("resType", type);
+			agent.setConfig(agentConfig);
+
 			agentList.add(agent);
 		}
 		agents.put(type, agentList);
@@ -278,13 +289,13 @@ public class DemoGenerator extends Agent {
 		if (!operational)
 			return true;
 
-		Map<String,Integer> allowedTypes = new HashMap<String,Integer>();
-		allowedTypes.put("fireStation",2);
-		allowedTypes.put("policeStation",2);
-		allowedTypes.put("hospital",2);
-		allowedTypes.put("rvpFire",1);
-		allowedTypes.put("rvpAmbu",1);
-		allowedTypes.put("incident",1);
+		Map<String, Integer> allowedTypes = new HashMap<String, Integer>();
+		allowedTypes.put("fireStation", 2);
+		allowedTypes.put("policeStation", 2);
+		allowedTypes.put("hospital", 2);
+		allowedTypes.put("rvpFire", 1);
+		allowedTypes.put("rvpAmbu", 1);
+		allowedTypes.put("incident", 1);
 
 		if (allowedTypes.containsKey(type)) {
 			return allowedTypes.get(type) > i;
@@ -313,7 +324,7 @@ public class DemoGenerator extends Agent {
 			List<double[]> list = entry.getValue();
 			for (int i = 0; i < list.size(); i++) {
 				if (filter(filter, type, i)) {
-					fc.add(getPoI(type,i));
+					fc.add(getPoI(type, i));
 				}
 			}
 		}

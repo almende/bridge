@@ -106,6 +106,14 @@ public class SimulatedResource extends Agent {
 	 * @see com.almende.eve.agent.Agent#onReady()
 	 */
 	public void onReady() {
+		ObjectNode config = getConfig();
+		if (config.has("initLocation")){
+			TypeUtil<double[]> typeutil = new TypeUtil<double[]>(){};
+			setGeoJsonLocation(typeutil.inject(config.get("initLocation")));
+		}
+		if (config.has("resType")){
+			setResType(config.get("resType").asText());
+		}
 		register();
 	}
 
@@ -533,16 +541,14 @@ public class SimulatedResource extends Agent {
 
 		getCurrentLocation();
 		Location location = new Location(new Double(geoJsonPos[1]).toString(),
-				new Double(geoJsonPos[0]).toString(), new Long(DateTime.now()
-						.getMillis()).toString());
+				new Double(geoJsonPos[0]).toString(), DateTime.now().toString());
 		if (location != null) {
 			status.set("current", JOM.getInstance().valueToTree(location));
 		}
 
 		if (route != null) {
 			Location goal = new Location(new Double(geoJsonGoal[1]).toString(),
-					new Double(geoJsonGoal[0]).toString(), new Long(getEta()
-							.getMillis()).toString());
+					new Double(geoJsonGoal[0]).toString(), getEtaString());
 			if (goal != null) {
 				status.set("goal", JOM.getInstance().valueToTree(goal));
 			}
