@@ -193,7 +193,7 @@ public class DemoGenerator extends NodeAgent {
 						LOG.log(Level.WARNING, "Couldn't send plan", e);
 					}
 				} else {
-					LOG.log(Level.WARNING, "still no candidates, gotta retry!");
+					LOG.log(Level.WARNING, "No candidates available, need to retry at application level, escalate!!");
 				}
 			}
 		} else {

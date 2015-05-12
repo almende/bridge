@@ -393,7 +393,23 @@ public class SimulatedResource extends NodeAgent {
 			feature.setProperty("taskTitle", plan.getCurrentTitle());
 			feature.setProperty("taskStatus", plan.getStatus());
 			feature.setProperty("taskLocations", plan.getLocations());
-			feature.setProperty("targetId", plan.getTargetLocation().getId());
+			if (plan.getTargetLocation() != null) {
+				feature.setProperty("targetId", plan.getTargetLocation()
+						.getId());
+			}
+		}
+	}
+	
+	private void addRouteProperties(Feature feature){
+		feature.setProperty("eta", getEtaString());
+		if (getEta().isAfterNow()) {
+			Period period = new Duration(DateTime.now(), getEta())
+					.toPeriod();
+			feature.setProperty("minutesRemaining", period.toString(MINANDSECS));
+			feature.setProperty("etaShort", getEta().toString("kk:mm:ss"));
+		} else {
+			feature.setProperty("minutesRemaining", 0);
+			feature.setProperty("etaShort", "00:00:00");
 		}
 	}
 
@@ -452,16 +468,10 @@ public class SimulatedResource extends NodeAgent {
 					geoJsonGoal[1]));
 			goal.setGeometry(goalPoint);
 			goal.setProperty("type", "targetLocation");
-			goal.setProperty("eta", getEtaString());
-			if (getEta().isAfterNow()) {
-				Period period = new Duration(DateTime.now(), getEta())
-						.toPeriod();
-				goal.setProperty("timeRemaining", period.toString(MINANDSECS));
-				goal.setProperty("etaShort", getEta().toString("kk:mm:ss"));
-			} else {
-				goal.setProperty("minutesRemaining", 0);
-				goal.setProperty("etaShort", "00:00:00");
-			}
+			
+			addRouteProperties(origin);
+			addRouteProperties(goal);
+			
 			addProperties(goal);
 			addTaskProperties(goal);
 

@@ -80,7 +80,11 @@ public class Task {
 	 * @return the closest
 	 */
 	public URI getClosest() {
-		return candidates.firstEntry().getValue();
+		if (candidates.size() > 0) {
+			return candidates.firstEntry().getValue();
+		} else {
+			return null;
+		}
 	}
 
 	/**
@@ -100,7 +104,10 @@ public class Task {
 		}
 		if (oldeta != null) {
 			candidates.remove(oldeta);
-			return candidates.ceilingEntry(oldeta).getValue();
+			final Entry<DateTime, URI> next = candidates.ceilingEntry(oldeta);
+			if (next != null) {
+				return next.getValue();
+			}
 		}
 		return null;
 	}
