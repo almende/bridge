@@ -5,6 +5,7 @@
 package com.almende.bridge.resources;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,32 +20,187 @@ import org.geojson.LngLatAlt;
 import org.geojson.Point;
 import org.joda.time.DateTime;
 
-import com.almende.eve.agent.Agent;
 import com.almende.eve.agent.AgentConfig;
+import com.almende.eve.algorithms.EventBus;
+import com.almende.eve.algorithms.agents.NodeAgent;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
+import com.almende.eve.protocol.jsonrpc.annotation.Namespace;
 import com.almende.eve.protocol.jsonrpc.annotation.Optional;
+import com.almende.eve.protocol.jsonrpc.annotation.Sender;
+import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
+import com.almende.eve.protocol.jsonrpc.formats.Params;
 import com.almende.util.URIUtil;
 import com.almende.util.jackson.JOM;
+import com.almende.util.uuid.UUID;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * The Class DemoGenerator.
  */
 @Access(AccessType.PUBLIC)
-public class DemoGenerator extends Agent {
-	private static final Logger				LOG					= Logger.getLogger(DemoGenerator.class
-																		.getName());
-	Map<String, List<SimulatedResource>>	agents				= new HashMap<String, List<SimulatedResource>>();
-	Map<String, List<double[]>>				placesOfInterest	= new HashMap<String, List<double[]>>();
-	Map<String, ObjectNode>					properties			= new HashMap<String, ObjectNode>();
+public class DemoGenerator extends NodeAgent {
+	private static final Logger						LOG					= Logger.getLogger(DemoGenerator.class
+																				.getName());
+	private Map<String, List<SimulatedResource>>	agents				= new HashMap<String, List<SimulatedResource>>();
+	private Map<String, List<double[]>>				placesOfInterest	= new HashMap<String, List<double[]>>();
+	private Map<String, ObjectNode>					properties			= new HashMap<String, ObjectNode>();
+	private EventBus								events				= null;
+
+	private Map<String, Task>						tasks				= new HashMap<String, Task>();
 
 	@Override
-	public void onReady(){
+	public void onReady() {
 		createPlacesOfInterest();
+		events = new EventBus(getScheduler(), caller, getGraph(), "SFN");
+		addNode2SFN();
 	}
-	
+
+	/**
+	 * Gets the event bus.
+	 *
+	 * @return the event bus
+	 */
+	@Namespace("event")
+	public EventBus getEventBus() {
+		return events;
+	}
+
+	/**
+	 * Send task.
+	 *
+	 * @param planName
+	 *            the plan name
+	 * @param type
+	 *            the type
+	 * @param i
+	 *            the i
+	 * @param minutes
+	 *            the minutes
+	 * @param taskParams
+	 *            the task params
+	 */
+	public void sendTask(@Name("plan") String planName,
+			@Name("type") String type, @Name("count") int i,
+			@Name("inMinutes") int minutes,
+			@Name("taskParams") ObjectNode taskParams) {
+		final Params params = new Params();
+		final ObjectNode config = JOM.createObjectNode();
+
+		Feature poi = getPoI(type, i);
+		Point point = (Point) poi.getGeometry();
+		config.put("lat", point.getCoordinates().getLatitude());
+		config.put("lon", point.getCoordinates().getLongitude());
+		config.put("before", DateTime.now().plusMinutes(minutes).getMillis());
+		config.put("type", planName);
+		config.set("taskParams", taskParams);
+		config.put("id", new UUID().toString());
+		tasks.put(config.get("id").asText(), new Task(config));
+
+		params.add("task", config);
+		params.add("reportTo", getUrls().get(0));
+
+		events.sendEvent(new JSONRequest("taskRequest", params));
+
+		schedule("handleTask", config, 10000);
+		LOG.warning("Added task:" + config);
+	}
+
+	/**
+	 * Volunteer.
+	 *
+	 * @param sender
+	 *            the sender
+	 * @param taskConfig
+	 *            the task config
+	 * @param eta
+	 *            the eta
+	 */
+	public void volunteer(@Sender URI sender,
+			@Name("task") ObjectNode taskConfig, @Name("eta") DateTime eta) {
+		final Task task = tasks.get(taskConfig.get("id").asText());
+		if (task != null) {
+			synchronized (task) {
+				task.setCandidate(eta, sender);
+			}
+		}
+	}
+
+	/**
+	 * Acknowledge.
+	 *
+	 * @param sender
+	 *            the sender
+	 * @param id
+	 *            the id
+	 * @param confirm
+	 *            the confirm
+	 */
+	public void acknowledge(@Sender URI sender,
+			@Name("id") String id,
+			@Name("confirm") boolean confirm) {
+		if (confirm) {
+			tasks.remove(id);
+		} else {
+			final Task task = tasks.get(id);
+			if (task != null) {
+				synchronized (task) {
+					URI next = task.getNext(sender);
+					LOG.warning("Getting an alternative resource:"+next);
+					if (next != null) {
+						try {
+							final Params params = new Params();
+							params.add("plan", task.getConfig().get("type")
+									.asText());
+							params.add("id", id);
+							params.set("params",
+									task.getConfig().get("taskParams"));
+							call(next, "setPlan", params);
+						} catch (IOException e) {
+							LOG.log(Level.WARNING, "Couldn't send plan", e);
+						}
+					} else {
+						LOG.log(Level.WARNING,
+								"still no candidates, gotta retry!");
+					}
+				}
+			} else {
+				LOG.log(Level.WARNING, "Strange, missing task? " + id);
+			}
+		}
+	}
+
+	/**
+	 * Handle task.
+	 *
+	 * @param id
+	 *            the id
+	 */
+	public void handleTask(@Name("id") String id) {
+		final Task task = tasks.get(id);
+		if (task != null) {
+			synchronized (task) {
+				if (task.getClosest() != null) {
+					try {
+						final Params params = new Params();
+						params.add("plan", task.getConfig().get("type")
+								.asText());
+						params.add("id", id);
+						params.set("params", task.getConfig().get("taskParams"));
+						call(task.getClosest(), "setPlan", params);
+					} catch (IOException e) {
+						LOG.log(Level.WARNING, "Couldn't send plan", e);
+					}
+				} else {
+					LOG.log(Level.WARNING, "still no candidates, gotta retry!");
+				}
+			}
+		} else {
+			LOG.log(Level.WARNING, "Strange, missing task? " + id);
+		}
+	}
+
 	/**
 	 * Store places of interest.
 	 *
@@ -239,6 +395,7 @@ public class DemoGenerator extends Agent {
 											stations.get((int) (Math.random() * stations
 													.size()))));
 			agentConfig.put("resType", type);
+			agentConfig.put("guid", new UUID().toString());
 			agent.setConfig(agentConfig);
 
 			agentList.add(agent);

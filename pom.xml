@@ -60,6 +60,11 @@
 			<version>${eve.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>com.almende.eve</groupId>
+			<artifactId>eve-algorithms-simple</artifactId>
+			<version>${eve.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>de.grundid.opendatalab</groupId>
 			<artifactId>geojson-jackson</artifactId>
 			<version>${geojson.version}</version>

@@ -40,7 +40,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class EDXLAdapterAgent extends Agent {
 	private static final URI					DIRECTORY	= URI.create("local:yellow");
 	static String								lastTaskId	= "";
-	static final int							RESPERMES	= 1;
 	private static final TypeUtil<List<URI>>	URILIST		= new TypeUtil<List<URI>>() {};
 
 	private void _notify(String data, JsonNode meta) throws Exception {
@@ -104,9 +103,12 @@ public class EDXLAdapterAgent extends Agent {
 	 *
 	 * @param interval
 	 *            the interval
+	 * @param permessage
+	 *            the permessage
 	 */
 	public void sendReportResourceDeploymentStatus(
-			@Optional @Name("interval") Integer interval) {
+			@Optional @Name("interval") Integer interval,
+			@Optional @Name("permessage") Integer permessage) {
 		try {
 			List<URI> allResources = callSync(URI.create("local:proxy"),
 					"getAllResources", null, URILIST);
@@ -116,7 +118,7 @@ public class EDXLAdapterAgent extends Agent {
 			int count = 1;
 			while (iter.hasNext()) {
 				subList.add(iter.next());
-				if (subList.size() >= RESPERMES) {
+				if (permessage == null || subList.size() >= permessage) {
 					String replyDoc = createReportResourceDeploymentStatus(subList);
 
 					ObjectNode params = JOM.createObjectNode();
@@ -142,6 +144,7 @@ public class EDXLAdapterAgent extends Agent {
 			stop();
 			Params params = new Params();
 			params.add("interval", interval);
+			params.add("permessage",permessage!=null?permessage:1);
 			lastTaskId = getScheduler().schedule(
 					new JSONRequest("sendReportResourceDeploymentStatus",
 							params), interval * 1000);

@@ -28,12 +28,14 @@ import com.almende.bridge.oldDataStructs.Location;
 import com.almende.bridge.resources.plans.Evac;
 import com.almende.bridge.resources.plans.Goto;
 import com.almende.bridge.resources.plans.Plan;
-import com.almende.eve.agent.Agent;
+import com.almende.eve.algorithms.EventBus;
+import com.almende.eve.algorithms.agents.NodeAgent;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
 import com.almende.eve.protocol.jsonrpc.annotation.Namespace;
 import com.almende.eve.protocol.jsonrpc.annotation.Optional;
+import com.almende.eve.protocol.jsonrpc.annotation.Sender;
 import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
 import com.almende.eve.protocol.jsonrpc.formats.Params;
 import com.almende.util.TypeUtil;
@@ -49,7 +51,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * The Class SimulatedResource.
  */
 @Access(AccessType.PUBLIC)
-public class SimulatedResource extends Agent {
+public class SimulatedResource extends NodeAgent {
+
 	private static final Logger	LOG			= Logger.getLogger(SimulatedResource.class
 													.getName());
 	private static final URI	NAVAGENT	= URIUtil
@@ -61,14 +64,12 @@ public class SimulatedResource extends Agent {
 
 	private DEPLOYMENTSTATE								deploymentState	= DEPLOYMENTSTATE.Unassigned;
 
-	private UUID										guid			= new UUID();
+	private EventBus									events			= null;
 
-	private DateTime									routeBase		= DateTime
-																				.now();
-	private List<double[]>								route			= null;
-	private int											index			= 0;
-	private Duration									eta				= null;
+	private String										guid			= new UUID()
+																				.toString();
 
+	private Route										route			= null;
 	private Plan										plan			= null;
 
 	// other: {"lat":52.069451, "lon":4.640714}
@@ -101,20 +102,54 @@ public class SimulatedResource extends Agent {
 
 	private ObjectNode									properties		= JOM.createObjectNode();
 
+	/**
+	 * Instantiates a new simulated resource.
+	 *
+	 * @param id
+	 *            the id
+	 * @param config
+	 *            the config
+	 */
+	public SimulatedResource(String id, ObjectNode config) {
+		super(id, config);
+	}
+
+	/**
+	 * Instantiates a new simulated resource.
+	 */
+	public SimulatedResource() {
+		super();
+	}
+
+	/**
+	 * Gets the event bus.
+	 *
+	 * @return the event bus
+	 */
+	@Namespace("event")
+	public EventBus getEventBus() {
+		return events;
+	}
+
 	/*
 	 * (non-Javadoc)
 	 * @see com.almende.eve.agent.Agent#onReady()
 	 */
 	public void onReady() {
 		ObjectNode config = getConfig();
-		if (config.has("initLocation")){
-			TypeUtil<double[]> typeutil = new TypeUtil<double[]>(){};
+		if (config.has("initLocation")) {
+			TypeUtil<double[]> typeutil = new TypeUtil<double[]>() {};
 			setGeoJsonLocation(typeutil.inject(config.get("initLocation")));
 		}
-		if (config.has("resType")){
+		if (config.has("resType")) {
 			setResType(config.get("resType").asText());
 		}
+		if (config.has("guid")) {
+			this.guid = config.get("guid").asText();
+		}
 		register();
+		events = new EventBus(getScheduler(), caller, getGraph(), "SFN");
+		addNode2SFN();
 	}
 
 	/**
@@ -125,6 +160,92 @@ public class SimulatedResource extends Agent {
 			call(new URI("local:proxy"), "register", null);
 		} catch (Exception e) {
 			LOG.log(Level.WARNING, "Error registering agent", e);
+		}
+	}
+
+	/**
+	 * Task request.
+	 * -Check if busy
+	 * -Check if capable of that task
+	 * -Check distance to start (rough guess if reachable in time) (TODO,
+	 * somewhat problematic due to datum issues)
+	 * -Check ETA to start
+	 * If all true, report possible match plus ETA.
+	 *
+	 * @param task
+	 *            the task
+	 * @param reportTo
+	 *            the report to
+	 */
+	public void taskRequest(final @Name("task") ObjectNode task,
+			final @Name("reportTo") URI reportTo) {
+		if (deploymentState.equals(DEPLOYMENTSTATE.Unassigned)) {
+			boolean capable = false;
+			if (task.get("type").asText().equals("Goto")) {
+				capable = true;
+			} else {
+				if (getResType().equals("medic vehicle")) {
+					if (task.get("type").asText().equals("Evac")) {
+						capable = true;
+					}
+				}
+			}
+			if (!capable) {
+				return;
+			}
+			// distance/speed on Highway (~80km/h)
+
+			final Params params = new Params();
+			params.put("startLat", geoJsonPos[1]);
+			params.put("startLon", geoJsonPos[0]);
+			params.put("endLat", task.get("lat").asDouble());
+			params.put("endLon", task.get("lon").asDouble());
+
+			try {
+				getRoute(params, new AsyncCallback<ObjectNode>() {
+					/*
+					 * (non-Javadoc)
+					 * @see
+					 * com.almende.util.callback.AsyncCallback#onSuccess(java.lang
+					 * .Object
+					 * )
+					 */
+					@Override
+					public void onSuccess(ObjectNode result) {
+						Route myRoute = new Route();
+						myRoute.routeBase = DateTime.now();
+						myRoute.route = ROUTETYPE.inject(result.get("route"));
+						myRoute.index = 0;
+						myRoute.eta = new Duration(result.get("millis")
+								.asLong());
+
+						if (myRoute.routeBase.plus(myRoute.eta).isBefore(
+								task.get("before").asLong())) {
+							// Potential!
+							Params params = new Params();
+							params.add("task", task);
+							params.add(
+									"eta",
+									getEta().plus(
+											(long) Math.floor(Math.random() * 5000)));
+							try {
+								call(reportTo, "volunteer", params);
+							} catch (IOException e) {
+								LOG.log(Level.WARNING,
+										"Couldn't volunteer for task", e);
+							}
+						}
+					}
+
+					@Override
+					public void onFailure(Exception exception) {
+						LOG.log(Level.WARNING, "Couldn't plan route:",
+								exception);
+					}
+				});
+			} catch (IOException e) {
+				LOG.log(Level.WARNING, "Couldn't plan route:", e);
+			}
 		}
 	}
 
@@ -188,15 +309,15 @@ public class SimulatedResource extends Agent {
 	public synchronized ObjectNode getCurrentLocation() {
 		final ObjectNode result = JOM.createObjectNode();
 		if (route != null) {
-			final long millis = new Duration(routeBase, DateTime.now())
+			final long millis = new Duration(route.routeBase, DateTime.now())
 					.getMillis();
 			double[] pos = null;
 			if (getEta().isBeforeNow()) {
-				pos = route.get(route.size() - 1);
+				pos = route.route.get(route.route.size() - 1);
 			} else {
 				double[] last = null;
-				for (int i = index; i < route.size(); i++) {
-					double[] item = route.get(i);
+				for (int i = route.index; i < route.route.size(); i++) {
+					double[] item = route.route.get(i);
 					if (item[3] > millis) {
 						if (last != null) {
 							double length = item[3] - last[3];
@@ -216,7 +337,7 @@ public class SimulatedResource extends Agent {
 						break;
 					}
 					last = item;
-					index = index > 0 ? index - 1 : 0;
+					route.index = route.index > 0 ? route.index - 1 : 0;
 				}
 			}
 
@@ -239,9 +360,13 @@ public class SimulatedResource extends Agent {
 	 *
 	 * @return the eta
 	 */
-
+	@JsonIgnore
 	public DateTime getEta() {
-		return routeBase.plus(eta);
+		if (route != null) {
+			return route.routeBase.plus(route.eta);
+		} else {
+			return DateTime.now();
+		}
 	}
 
 	/**
@@ -268,6 +393,7 @@ public class SimulatedResource extends Agent {
 			feature.setProperty("taskTitle", plan.getCurrentTitle());
 			feature.setProperty("taskStatus", plan.getStatus());
 			feature.setProperty("taskLocations", plan.getLocations());
+			feature.setProperty("targetId", plan.getTargetLocation().getId());
 		}
 	}
 
@@ -305,10 +431,10 @@ public class SimulatedResource extends Agent {
 				track.setId(getId());
 				final LineString tracksteps = new LineString();
 				tracksteps.add(new LngLatAlt(geoJsonPos[0], geoJsonPos[1]));
-				final long millis = new Duration(routeBase, DateTime.now())
-						.getMillis();
+				final long millis = new Duration(route.routeBase,
+						DateTime.now()).getMillis();
 
-				for (double[] step : route) {
+				for (double[] step : route.route) {
 					if (step[3] > millis) {
 						tracksteps.add(new LngLatAlt(step[0], step[1]));
 					}
@@ -336,7 +462,6 @@ public class SimulatedResource extends Agent {
 				goal.setProperty("minutesRemaining", 0);
 				goal.setProperty("etaShort", "00:00:00");
 			}
-			goal.setProperty("targetId", plan.getTargetLocation().getId());
 			addProperties(goal);
 			addTaskProperties(goal);
 
@@ -377,14 +502,38 @@ public class SimulatedResource extends Agent {
 	 *            the plan name
 	 * @param params
 	 *            the params
+	 * @param id
+	 *            the id
 	 * @param repeat
 	 *            the repeat
+	 * @param sender
+	 *            the sender
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
 	 */
 	public void setPlan(@Name("plan") String planName,
-			@Name("params") ObjectNode params,
-			@Optional @Name("repeat") Boolean repeat) throws IOException {
+			@Name("params") ObjectNode params, @Optional @Name("id") String id,
+			@Optional @Name("repeat") Boolean repeat, @Sender URI sender)
+			throws IOException {
+
+		if (id != null) {
+			// Check if Plan is still allowed.
+			boolean confirm = true;
+			if (plan != null && plan.getStatus() != "finished") {
+				confirm = false;
+			}
+			// TODO: check if ETA still reachable? If not, probably nobody can.
+			// Can we inform sender of this situation?
+			final Params parms = new Params();
+			parms.add("id", id);
+			parms.add("confirm", confirm);
+			call(sender, "acknowledge", parms);
+			if (!confirm) {
+				LOG.warning(getId()
+						+ ": Not confirming plan, as I'm already doing something else.");
+				return;
+			}
+		}
 		if ("Evac".equals(planName)) {
 			final Params parms = new Params();
 			parms.add("type", "hospital");
@@ -398,10 +547,14 @@ public class SimulatedResource extends Agent {
 			final Feature pickup = callSync(URIUtil.create("local:demo"),
 					"getPoI", parms2, Feature.class);
 
-			plan = new Evac(getScheduler(), hospital, pickup);
+			final ObjectNode config = JOM.createObjectNode();
+			config.set("hospital", JOM.getInstance().valueToTree(hospital));
+			config.set("pickupPoint", JOM.getInstance().valueToTree(pickup));
+			plan = new Evac(getScheduler(), config);
 
 			plan.onStateChange("toPickup", NEXTLEGREQ);
 			plan.onStateChange("toDropOff", NEXTLEGREQ);
+
 		} else if ("Goto".equals(planName)) {
 			final Params parms = new Params();
 			parms.add("type", params.get("type").asText());
@@ -409,8 +562,12 @@ public class SimulatedResource extends Agent {
 			final Feature feature = callSync(URIUtil.create("local:demo"),
 					"getPoI", parms, Feature.class);
 
-			plan = new Goto(getScheduler(), feature);
+			final ObjectNode config = JOM.createObjectNode();
+			config.set("goal", JOM.getInstance().valueToTree(feature));
+			plan = new Goto(getScheduler(), config);
+
 			plan.onStateChange("travel", NEXTLEGREQ);
+
 		}
 		if (plan != null) {
 			if (repeat != null && repeat) {
@@ -472,14 +629,18 @@ public class SimulatedResource extends Agent {
 		}
 	}
 
+	private void getRoute(final ObjectNode params,
+			final AsyncCallback<ObjectNode> callback) throws IOException {
+		call(NAVAGENT, "getRoute", params, callback);
+	}
+
 	private void planRoute() throws IOException {
 		final Params params = new Params();
 		params.put("startLat", geoJsonPos[1]);
 		params.put("startLon", geoJsonPos[0]);
 		params.put("endLat", geoJsonGoal[1]);
 		params.put("endLon", geoJsonGoal[0]);
-
-		call(NAVAGENT, "getRoute", params, new AsyncCallback<ObjectNode>() {
+		getRoute(params, new AsyncCallback<ObjectNode>() {
 
 			/*
 			 * (non-Javadoc)
@@ -489,11 +650,13 @@ public class SimulatedResource extends Agent {
 			 */
 			@Override
 			public void onSuccess(ObjectNode result) {
-				routeBase = DateTime.now();
-				route = ROUTETYPE.inject(result.get("route"));
-				index = 0;
-				eta = new Duration(result.get("millis").asLong());
-
+				if (route == null) {
+					route = new Route();
+				}
+				route.routeBase = DateTime.now();
+				route.route = ROUTETYPE.inject(result.get("route"));
+				route.index = 0;
+				route.eta = new Duration(result.get("millis").asLong());
 				checkArrival();
 			}
 
@@ -501,9 +664,6 @@ public class SimulatedResource extends Agent {
 			public void onFailure(Exception exception) {
 				LOG.log(Level.WARNING, "Couldn't get route:", exception);
 				route = null;
-				index = 0;
-				eta = new Duration(0);
-				routeBase = DateTime.now();
 			}
 		});
 	}
@@ -534,8 +694,8 @@ public class SimulatedResource extends Agent {
 	public ObjectNode requestStatus() {
 		ObjectNode status = JOM.createObjectNode();
 		status.put("name", getId());
-		status.put("id", guid.toString()); // Some global uid, for .NET id
-											// separation.
+		status.put("id", guid); // Some global uid, for .NET id
+								// separation.
 		status.put("type", getResType());
 		status.put("deploymentStatus", deploymentState.toString());
 
@@ -562,5 +722,12 @@ public class SimulatedResource extends Agent {
 			}
 		}
 		return status;
+	}
+
+	class Route {
+		DateTime		routeBase	= DateTime.now();
+		List<double[]>	route		= null;
+		int				index		= 0;
+		Duration		eta			= null;
 	}
 }

@@ -7,6 +7,7 @@ package com.almende.bridge.resources.plans;
 import org.geojson.Feature;
 
 import com.almende.eve.scheduling.Scheduler;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * The Class Goto.
@@ -28,12 +29,12 @@ public class Goto extends Plan {
 	 *
 	 * @param scheduler
 	 *            the scheduler
-	 * @param goal
-	 *            the goal
+	 * @param config
+	 *            the config
 	 */
-	public Goto(Scheduler scheduler, Feature goal) {
-		super(scheduler);
-		this.goal = goal;
+	public Goto(Scheduler scheduler, ObjectNode config) {
+		super(scheduler,config);
+		this.goal = FEATURE.inject(config.get("goal"));
 	}
 
 	/*

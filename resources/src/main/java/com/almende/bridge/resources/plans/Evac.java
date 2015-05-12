@@ -10,6 +10,8 @@ import com.almende.eve.protocol.jsonrpc.annotation.Name;
 import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
 import com.almende.eve.protocol.jsonrpc.formats.Params;
 import com.almende.eve.scheduling.Scheduler;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * The Class Evac.
@@ -43,21 +45,19 @@ public class Evac extends Plan {
 																		"finished"));
 
 	private STATE						status			= STATE.init;
-
+	
 	/**
 	 * Instantiates a new evac.
 	 *
 	 * @param scheduler
 	 *            the scheduler
-	 * @param hospital
-	 *            the hospital
-	 * @param pickupPoint
-	 *            the pickup point
+	 * @param config
+	 *            the config
 	 */
-	public Evac(Scheduler scheduler, Feature hospital, Feature pickupPoint) {
-		super(scheduler);
-		this.hospital = hospital;
-		this.pickupPoint = pickupPoint;
+	public Evac(Scheduler scheduler, ObjectNode config) {
+		super(scheduler,config);
+		this.hospital = FEATURE.inject(config.get("hospital"));
+		this.pickupPoint = FEATURE.inject(config.get("pickupPoint"));
 	}
 
 	@Override
@@ -74,13 +74,15 @@ public class Evac extends Plan {
 	public String getStatus() {
 		return status.toString();
 	}
-
+	
 	@Override
+	@JsonIgnore
 	public String[] getLocations() {
 		return new String[] { hospital.getId(), pickupPoint.getId() };
 	}
-
+	
 	@Override
+	@JsonIgnore
 	public Feature getTargetLocation() {
 		if (status.equals(STATE.toPickup)) {
 			return pickupPoint;

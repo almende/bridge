@@ -16,6 +16,8 @@ import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
 import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
 import com.almende.eve.scheduling.Scheduler;
+import com.almende.util.TypeUtil;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * The Class Plan.
@@ -23,20 +25,43 @@ import com.almende.eve.scheduling.Scheduler;
 @Access(AccessType.PUBLIC)
 public abstract class Plan {
 
+	protected ObjectNode						config		= null;
 
 	protected Scheduler							scheduler;
 
-	protected Map<String, List<JSONRequest>>	triggers		= new HashMap<String, List<JSONRequest>>();
-
+	protected Map<String, List<JSONRequest>>	triggers	= new HashMap<String, List<JSONRequest>>();
+	protected static final TypeUtil<Feature>	FEATURE		= new TypeUtil<Feature>() {};
 
 	/**
 	 * Instantiates a new plan.
 	 *
 	 * @param scheduler
 	 *            the scheduler
+	 * @param config
+	 *            the config
 	 */
-	public Plan(Scheduler scheduler) {
+	public Plan(Scheduler scheduler, ObjectNode config) {
 		this.scheduler = scheduler;
+		this.config = config;
+	}
+
+	/**
+	 * Gets the config.
+	 *
+	 * @return the config
+	 */
+	public ObjectNode getConfig() {
+		return config;
+	}
+
+	/**
+	 * Sets the config.
+	 *
+	 * @param config
+	 *            the new config
+	 */
+	public void setConfig(ObjectNode config) {
+		this.config = config;
 	}
 
 	/**
