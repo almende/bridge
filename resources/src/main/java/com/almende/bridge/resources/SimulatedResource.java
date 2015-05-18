@@ -28,6 +28,7 @@ import com.almende.bridge.oldDataStructs.Location;
 import com.almende.bridge.resources.plans.Evac;
 import com.almende.bridge.resources.plans.Goto;
 import com.almende.bridge.resources.plans.Plan;
+import com.almende.bridge.resources.plans.RoadBlock;
 import com.almende.eve.algorithms.EventBus;
 import com.almende.eve.algorithms.agents.NodeAgent;
 import com.almende.eve.protocol.jsonrpc.annotation.Access;
@@ -66,6 +67,7 @@ public class SimulatedResource extends NodeAgent {
 
 	private EventBus									events			= null;
 
+	private String										tag				= "empty";
 	private String										guid			= new UUID()
 																				.toString();
 
@@ -147,9 +149,14 @@ public class SimulatedResource extends NodeAgent {
 		if (config.has("guid")) {
 			this.guid = config.get("guid").asText();
 		}
+		if (config.has("tag")) {
+			this.tag = config.get("tag").asText();
+		}
 		register();
-		events = new EventBus(getScheduler(), caller, getGraph(), "SFN");
-		addNode2SFN();
+		if ("master".equals(tag)) {
+			events = new EventBus(getScheduler(), caller, getGraph(), "SFN");
+			addNode2SFN();
+		}
 	}
 
 	/**
@@ -157,7 +164,8 @@ public class SimulatedResource extends NodeAgent {
 	 */
 	public void register() {
 		try {
-			call(new URI("local:proxy"), "register", null);
+			final Params params = new Params("tag", tag);
+			call(new URI("local:proxy"), "register", params);
 		} catch (Exception e) {
 			LOG.log(Level.WARNING, "Error registering agent", e);
 		}
@@ -179,15 +187,27 @@ public class SimulatedResource extends NodeAgent {
 	 */
 	public void taskRequest(final @Name("task") ObjectNode task,
 			final @Name("reportTo") URI reportTo) {
+		String resType = getResType();
+		if (task.has("resType")) {
+			if (!resType.equals(task.get("resType").asText())) {
+				return;
+			}
+		}
 		if (deploymentState.equals(DEPLOYMENTSTATE.Unassigned)) {
 			boolean capable = false;
-			if (task.get("type").asText().equals("Goto")) {
+			if (task.get("planName").asText().equals("Goto")) {
 				capable = true;
-			} else {
-				if (getResType().equals("medic vehicle")) {
-					if (task.get("type").asText().equals("Evac")) {
-						capable = true;
-					}
+			} else if (resType.equals("medic vehicle")) {
+				if (task.get("planName").asText().equals("Evac")) {
+					capable = true;
+				}
+			} else if (resType.equals("police vehicle")) {
+				if (task.get("planName").asText().equals("RoadBlock")) {
+					capable = true;
+				}
+			} else if (resType.equals("fire vehicle")) {
+				if (task.get("planName").asText().equals("FireSuppression")) {
+					capable = true;
 				}
 			}
 			if (!capable) {
@@ -399,17 +419,20 @@ public class SimulatedResource extends NodeAgent {
 			}
 		}
 	}
-	
-	private void addRouteProperties(Feature feature){
-		feature.setProperty("eta", getEtaString());
-		if (getEta().isAfterNow()) {
-			Period period = new Duration(DateTime.now(), getEta())
-					.toPeriod();
-			feature.setProperty("minutesRemaining", period.toString(MINANDSECS));
-			feature.setProperty("etaShort", getEta().toString("kk:mm:ss"));
-		} else {
-			feature.setProperty("minutesRemaining", 0);
-			feature.setProperty("etaShort", "00:00:00");
+
+	private void addRouteProperties(Feature feature) {
+		if (route != null) {
+			feature.setProperty("eta", getEtaString());
+			if (getEta().isAfterNow()) {
+				Period period = new Duration(DateTime.now(), getEta())
+						.toPeriod();
+				feature.setProperty("minutesRemaining",
+						period.toString(MINANDSECS));
+				feature.setProperty("etaShort", getEta().toString("kk:mm:ss"));
+			} else {
+				feature.setProperty("minutesRemaining", 0);
+				feature.setProperty("etaShort", "00:00:00");
+			}
 		}
 	}
 
@@ -423,7 +446,6 @@ public class SimulatedResource extends NodeAgent {
 
 	public FeatureCollection getGeoJson(
 			@Optional @Name("includeTrack") Boolean incTrack) {
-
 		getCurrentLocation();
 
 		final FeatureCollection fc = new FeatureCollection();
@@ -468,10 +490,10 @@ public class SimulatedResource extends NodeAgent {
 					geoJsonGoal[1]));
 			goal.setGeometry(goalPoint);
 			goal.setProperty("type", "targetLocation");
-			
+
 			addRouteProperties(origin);
 			addRouteProperties(goal);
-			
+
 			addProperties(goal);
 			addTaskProperties(goal);
 
@@ -565,15 +587,37 @@ public class SimulatedResource extends NodeAgent {
 			plan.onStateChange("toPickup", NEXTLEGREQ);
 			plan.onStateChange("toDropOff", NEXTLEGREQ);
 
-		} else if ("Goto".equals(planName)) {
-			final Params parms = new Params();
-			parms.add("type", params.get("type").asText());
-			parms.add("count", params.get("index").asInt());
-			final Feature feature = callSync(URIUtil.create("local:demo"),
-					"getPoI", parms, Feature.class);
-
+		} else if ("RoadBlock".equals(planName)
+				|| "FireSuppression".equals(planName)) {
 			final ObjectNode config = JOM.createObjectNode();
-			config.set("goal", JOM.getInstance().valueToTree(feature));
+			if (params.has("task")) {
+				config.set("task", params.get("task"));
+			} else {
+				final Params parms = new Params();
+				parms.add("type", params.get("poiType").asText());
+				parms.add("count", params.get("poiNumber").asInt());
+				final Feature feature = callSync(URIUtil.create("local:demo"),
+						"getPoI", parms, Feature.class);
+
+				config.set("goal", JOM.getInstance().valueToTree(feature));
+			}
+			plan = new RoadBlock(getScheduler(), config);
+
+			plan.onStateChange("travel", NEXTLEGREQ);
+
+		} else if ("Goto".equals(planName)) {
+			final ObjectNode config = JOM.createObjectNode();
+			if (params.has("task")) {
+				config.set("task", params.get("task"));
+			} else {
+				final Params parms = new Params();
+				parms.add("type", params.get("type").asText());
+				parms.add("count", params.get("index").asInt());
+				final Feature feature = callSync(URIUtil.create("local:demo"),
+						"getPoI", parms, Feature.class);
+
+				config.set("goal", JOM.getInstance().valueToTree(feature));
+			}
 			plan = new Goto(getScheduler(), config);
 
 			plan.onStateChange("travel", NEXTLEGREQ);

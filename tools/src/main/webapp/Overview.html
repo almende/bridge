@@ -114,7 +114,8 @@ var update_rm = function(){
 		if (typeof google != "undefined"){
 			parse(data.result);
 		}
-		to = setTimeout(update_rm,500);	
+		to = setTimeout(update_rm,500);
+		map.data.loadGeoJson(placesOfInterest);	
 	})
 }
 

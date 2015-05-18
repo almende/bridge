@@ -84,5 +84,51 @@ public class NavAgent extends Agent {
 
 		return result;
 	}
+	
+//	/**
+//	 * Gets the search pattern.
+//	 *
+//	 * @param latitude
+//	 *            the latitude
+//	 * @param longitude
+//	 *            the longitude
+//	 * @return the search pattern
+//	 */
+//	@Access(AccessType.PUBLIC)
+//	public ObjectNode getSearchPattern(@Name("lat") Double latitude, @Name("lon") Double longitude){
+//		ObjectNode result = JOM.createObjectNode();
+//
+//		final GraphHopper gh = Main.getHopper();
+//		int baseNode = gh.getLocationIndex().findID(latitude, longitude);
+//		EdgeExplorer explorer = gh.getGraph().createEdgeExplorer();
+//		
+//		int nodeid = baseNode;
+//		EdgeIterator iter = explorer.setBaseNode(nodeid);
+//		
+//		while (iter.next()){
+//			
+//		}
+//		
+//		
+//		if (res.hasErrors()){
+//			throw new IllegalStateException("Route has error(s):"+res.getErrors());
+//		}
+//		InstructionList list = res.getInstructions();
+//		final List<GPXEntry> gpx = list.createGPXList();
+//		final ArrayNode parts = JOM.createArrayNode();
+//		for (GPXEntry entry : gpx){
+//			final ArrayNode item = JOM.createArrayNode();
+//			item.add(entry.getLon());
+//			item.add(entry.getLat());
+//			item.add(Double.isNaN(entry.getEle())?0:entry.getEle());
+//			item.add(entry.getMillis());
+//			parts.add(item);
+//		}
+//		result.set("route",parts);
+//		result.put("distance", res.getDistance());
+//		result.put("millis", res.getMillis());
+//
+//		return result;
+//	}
 
 }

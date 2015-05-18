@@ -9,10 +9,13 @@ import static com.almende.bridge.edxl.EDXLParser.getElementsByType;
 import static com.almende.bridge.edxl.EDXLParser.getStringByPath;
 import static com.almende.bridge.edxl.EDXLParser.parseXML;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.jdom.Document;
 import org.jdom.Element;
@@ -38,12 +41,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  */
 @Access(AccessType.PUBLIC)
 public class EDXLAdapterAgent extends Agent {
+	private static final Logger					LOG			= Logger.getLogger(EDXLAdapterAgent.class
+																	.getName());
 	private static final URI					DIRECTORY	= URI.create("local:yellow");
 	static String								lastTaskId	= "";
 	private static final TypeUtil<List<URI>>	URILIST		= new TypeUtil<List<URI>>() {};
 
 	private void _notify(String data, JsonNode meta) throws Exception {
-		System.err.println("Received notify:" + data + " : " + meta.toString());
+		LOG.info("Received notify:" + data + " : " + meta.toString());
 		RequestResource(data);
 	}
 
@@ -72,17 +77,28 @@ public class EDXLAdapterAgent extends Agent {
 		}
 	}
 
+	private List<URI> getResourceList() {
+		final Params params = new Params("tag", "master");
+		List<URI> allResources;
+		try {
+			allResources = callSync(URI.create("local:proxy"),
+					"getAllResources", params, URILIST);
+		} catch (IOException e) {
+			allResources = new ArrayList<URI>(0);
+			LOG.log(Level.WARNING, "Couldn't obtain resourceList", e);
+		}
+		return allResources;
+	}
+
 	/**
 	 * Gets the resources.
 	 *
 	 * @return the resources
 	 */
 	public ArrayNode getResources() {
-		ArrayNode result = JOM.createArrayNode();
+		final ArrayNode result = JOM.createArrayNode();
+		final List<URI> allResources = getResourceList();
 		try {
-			List<URI> allResources = callSync(URI.create("local:proxy"),
-					"getAllResources", null, URILIST);
-
 			Iterator<URI> iter = allResources.iterator();
 			while (iter.hasNext()) {
 				List<URI> subList = new ArrayList<URI>();
@@ -91,9 +107,9 @@ public class EDXLAdapterAgent extends Agent {
 				result.add(replyDoc);
 			}
 		} catch (Exception e) {
-			System.err
-					.println("Ran into trouble creating and posting EDXL-RM for S2D2S.");
-			e.printStackTrace();
+			LOG.log(Level.WARNING,
+					"Ran into trouble creating and posting EDXL-RM for S2D2S.",
+					e);
 		}
 		return result;
 	}
@@ -109,10 +125,9 @@ public class EDXLAdapterAgent extends Agent {
 	public void sendReportResourceDeploymentStatus(
 			@Optional @Name("interval") Integer interval,
 			@Optional @Name("permessage") Integer permessage) {
-		try {
-			List<URI> allResources = callSync(URI.create("local:proxy"),
-					"getAllResources", null, URILIST);
 
+		final List<URI> allResources = getResourceList();
+		try {
 			Iterator<URI> iter = allResources.iterator();
 			List<URI> subList = new ArrayList<URI>();
 			int count = 1;
@@ -144,7 +159,7 @@ public class EDXLAdapterAgent extends Agent {
 			stop();
 			Params params = new Params();
 			params.add("interval", interval);
-			params.add("permessage",permessage!=null?permessage:1);
+			params.add("permessage", permessage != null ? permessage : 1);
 			lastTaskId = getScheduler().schedule(
 					new JSONRequest("sendReportResourceDeploymentStatus",
 							params), interval * 1000);

@@ -5,8 +5,12 @@
 package com.almende.bridge.resources.plans;
 
 import org.geojson.Feature;
+import org.geojson.LngLatAlt;
+import org.geojson.Point;
 
+import com.almende.bridge.oldDataStructs.Task;
 import com.almende.eve.scheduling.Scheduler;
+import com.almende.util.TypeUtil;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -14,15 +18,17 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  */
 public class Goto extends Plan {
 
-	private enum STATE {
-		init, travel, finished
+	enum STATE {
+		init, travel, stay, finished
 	};
 
-	private static final String		TITLE			= "Go towards goal location.";
-	private static final String[]	DESCRIPTIONS	= { "Task not started",
-			"Traveling towards goal", "Task finished" };
-	private STATE					status			= STATE.init;
-	private Feature					goal			= null;
+	private static final String			TITLE			= "Go towards goal location.";
+	private static final String[]		DESCRIPTIONS	= { "Task not started",
+			"Traveling towards goal", "Staying at goal", "Task finished"	};
+	protected STATE						status			= STATE.init;
+	private Feature						goal			= null;
+
+	private static final TypeUtil<Task>	TASK			= new TypeUtil<Task>() {};
 
 	/**
 	 * Instantiates a new goto.
@@ -33,8 +39,20 @@ public class Goto extends Plan {
 	 *            the config
 	 */
 	public Goto(Scheduler scheduler, ObjectNode config) {
-		super(scheduler,config);
-		this.goal = FEATURE.inject(config.get("goal"));
+		super(scheduler, config);
+		if (config.has("goal")) {
+			this.goal = FEATURE.inject(config.get("goal"));
+		} else if (config.has("task")) {
+			final Task task = TASK.inject(config.get("task"));
+			final Feature feature = new Feature();
+			final Point point = new Point();
+			point.setCoordinates(new LngLatAlt(Double.valueOf(task.getLon()),
+					Double.valueOf(task.getLat())));
+			feature.setGeometry(point);
+			feature.setId("tempLocation");
+			//TODO: feature.setProperty("icon", node.get("icon").asText());
+			this.goal = feature;
+		}
 	}
 
 	/*
