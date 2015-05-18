@@ -1,0 +1,50 @@
+<html>
+<head>
+<script src="components/jquery/jquery.min.js"></script>
+<script src="components/json2/json2.js"></script>
+<script>
+var baseUrl = window.location.href.replace("tools/buttons.html","").replace("8883","8882").replace("8080","8882");
+
+$(document).ready(function() {
+	$( "button, input[type='button']" ).click(function(){
+		$( "#error" ).html("");
+		$( "#feedback" ).html("");
+		$.ajax({
+			url:baseUrl+"agents/demo",
+			processdata:false,
+			crossDomain: true,
+			data:'{"method":"doScenarioSwitch","id":1,"jsonrpc":"2.0","params":{"step":"'+this.value+'"}}',
+			type:"POST"
+		}).done(function (data){
+			if (typeof data == "string" && data != ""){
+				data=JSON.parse(data);
+			};
+			if (typeof data.error != "undefined"){
+				$( "#error" ).html("error: "+data.error.message);
+				console.log(data.error);
+			} else {
+				$( "#feedback" ).html("ok");
+			}
+		});
+	});	
+});
+</script>
+
+</head>
+
+<body>
+<!-- buttons for andries -->
+<div style="color:red; display:inline" id="error"></div><div style="color:green; display:inline" id="feedback"></div><br><br>
+<form>
+	<input type="button" name="reset" value="reset"/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(T=0) Reset demo to initial situation<br>
+	<input type="button" name="incident" value="incident"/> (T+3) Incident starts, minor movement towards incident, incident icon is shown.<br>
+	<input type="button" name="assessment" value="assessment"/> (T+10) Safety assessment, some more vehicles around incident, first rendezvous points are assigned.<br>
+	<input type="button" name="scaleUp" value="scaleUp"/>&nbsp;&nbsp;(T+15) Scale up, tasks assignment, many vehicles are assigned tasks, setup of roadblocks<br>
+	<input type="button" name="handling" value="handling"/> (T+35) Large scale handling, mostly moving ambulances to all hospitals in the neighborhood.<br>
+	<br>
+	<br>
+	<input type="button" name="ambulance" value="ambulance"/>Call an extra ambulance towards the scene<br>
+</form>
+
+</body>
+</html>
