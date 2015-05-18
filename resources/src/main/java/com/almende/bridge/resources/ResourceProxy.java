@@ -13,6 +13,7 @@ import java.util.Map;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
@@ -50,10 +51,18 @@ public class ResourceProxy extends Agent {
 	 *            the tag
 	 * @return the all resources
 	 */
-	public List<URI> getAllResources(@Name("tag") String tag) {
+	public List<URI> getAllResources(@Optional @Name("tag") String tag) {
 
-		if (agents.containsKey(tag)) {
-			return agents.get(tag);
+		if (tag != null) {
+			if (agents.containsKey(tag)) {
+				return agents.get(tag);
+			}
+		} else {
+			List<URI> all = new ArrayList<URI>();
+			for (List<URI> list : agents.values()) {
+				all.addAll(list);
+			}
+			return all;
 		}
 		return new ArrayList<URI>(0);
 	}
@@ -95,6 +104,8 @@ public class ResourceProxy extends Agent {
 	 *            the filter
 	 * @param track
 	 *            the track
+	 * @param target
+	 *            the target
 	 * @param tag
 	 *            the tag
 	 * @return the all geo json
@@ -106,16 +117,47 @@ public class ResourceProxy extends Agent {
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getJson(@QueryParam("filter") String filter,
 			@QueryParam("includeTrack") String track,
+			@QueryParam("includeTarget") String target,
 			@QueryParam("tag") String tag) throws IOException {
 		final Params params = new Params();
 		params.add("includeTrack", track != null ? Boolean.valueOf(track)
 				: false);
-
+		params.add("includeTarget", target != null ? Boolean.valueOf(target)
+				: true);
 		if (filter != null ? Boolean.valueOf(filter) : false) {
 			return Response.ok(getAllGeoJson(params, "asa")).build();
 		} else {
 			return Response.ok(getAllGeoJson(params, tag)).build();
 		}
+	}
+
+	/**
+	 * Gets the json specific.
+	 *
+	 * @param track
+	 *            the track
+	 * @param target
+	 *            the target
+	 * @param id
+	 *            the id
+	 * @return the json specific
+	 * @throws IOException
+	 *             Signals that an I/O exception has occurred.
+	 */
+	@Path("geojson/{id}")
+	@GET
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getJsonSpecific(@QueryParam("includeTrack") String track,
+			@QueryParam("includeTarget") String target,
+			@PathParam("id") String id) throws IOException {
+		final Params params = new Params();
+		params.add("includeTrack", track != null ? Boolean.valueOf(track)
+				: false);
+		params.add("includeTarget", target != null ? Boolean.valueOf(target)
+				: true);
+		FeatureCollection fc = callSync(URIUtil.create("local:" + id),
+				"getGeoJson", params, FeatureCollection.class);
+		return Response.ok(fc).build();
 	}
 
 	/**

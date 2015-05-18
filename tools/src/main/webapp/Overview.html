@@ -68,6 +68,7 @@ var parse = function (json){
 			var name = elem.name;
 			var displayName = ""; 
 			var eta = "";
+			var icon = elem.icon;
 			if (true || elem.name == "adc598b0-e860-11e4-8ae6-56847afe9799"){
 				displayName = name;
 				if (typeof elem.eta != "undefined"){
@@ -79,6 +80,9 @@ var parse = function (json){
 				var marker = shown_markers[name];
 				marker["labelContent"] = (displayName+eta);
 				marker.setPosition(pos);
+//				if (typeof icon != "undefined"){
+//				    marker.setIcon( { url:"images/"+icon, size: new google.maps.Size(50, 50), origin: new google.maps.Point(0,0), anchor: new google.maps.Point(25,50) });
+//				}
 			} else {
 				var mOptions = {
 						position : pos,
@@ -87,6 +91,9 @@ var parse = function (json){
 					    labelAnchor: new google.maps.Point(22, 0),
 					    labelClass: "labels", // the CSS class for the label
 					    labelStyle: {opacity: 0.75}
+				}
+				if (typeof icon != "undefined"){
+//				 	mOptions["icon"] = { url:"images/"+icon, size: new google.maps.Size(50, 50), origin: new google.maps.Point(0,0), anchor: new google.maps.Point(25,50) };
 				}
 				var marker = new MarkerWithLabel(mOptions);
 				shown_markers[name]=marker;
@@ -141,8 +148,9 @@ var draw_map = function(){
     	map.data.setStyle(function(feature) {
     		var icon = {};
     		var name = feature.getId();
-    		icon.url = "images/"+feature.getProperty('icon');
-    		if (icon.url == "images/null"){
+    		var iconName = feature.getProperty('icon');
+    		icon.url = "images/"+iconName;
+    		if (icon.url == "images/null" || icon.url == "images/undefined"){
     			icon.url = "images/Map-Marker-Ball-Azure-icon.png";
     		};
     		icon.scaledSize= {width:50, height:50};

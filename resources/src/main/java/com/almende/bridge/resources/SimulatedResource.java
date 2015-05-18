@@ -124,6 +124,19 @@ public class SimulatedResource extends NodeAgent {
 	}
 
 	/**
+	 * Reset.
+	 */
+	public void reset(){
+		this.plan = null;
+		this.route = null;
+		this.deploymentState	= DEPLOYMENTSTATE.Unassigned;
+		if (getConfig().has("initLocation")) {
+			TypeUtil<double[]> typeutil = new TypeUtil<double[]>() {};
+			setGeoJsonLocation(typeutil.inject(getConfig().get("initLocation")));
+		}
+	}
+	
+	/**
 	 * Gets the event bus.
 	 *
 	 * @return the event bus
@@ -151,6 +164,9 @@ public class SimulatedResource extends NodeAgent {
 		}
 		if (config.has("tag")) {
 			this.tag = config.get("tag").asText();
+		}
+		if (config.has("icon")) {
+			properties.put("icon", config.get("icon").asText());
 		}
 		register();
 		if ("master".equals(tag)) {
@@ -246,7 +262,7 @@ public class SimulatedResource extends NodeAgent {
 							params.add("task", task);
 							params.add(
 									"eta",
-									getEta().plus(
+									myRoute.eta.plus(
 											(long) Math.floor(Math.random() * 5000)));
 							try {
 								call(reportTo, "volunteer", params);
@@ -329,11 +345,12 @@ public class SimulatedResource extends NodeAgent {
 	public synchronized ObjectNode getCurrentLocation() {
 		final ObjectNode result = JOM.createObjectNode();
 		if (route != null) {
-			final long millis = new Duration(route.routeBase, DateTime.now())
+			final long millis = new Duration(route.routeBase, DateTime.now().plus((long) (Math.random()*1000)))
 					.getMillis();
 			double[] pos = null;
 			if (getEta().isBeforeNow()) {
 				pos = route.route.get(route.route.size() - 1);
+				route = null;
 			} else {
 				double[] last = null;
 				for (int i = route.index; i < route.route.size(); i++) {
@@ -346,8 +363,8 @@ public class SimulatedResource extends NodeAgent {
 							double part = millis - last[3];
 
 							final double[] loc = new double[4];
-							loc[0] = last[0] + lonDiff * (part / length);
-							loc[1] = last[1] + latDiff * (part / length);
+							loc[0] = last[0] + lonDiff * (part / length) + (Math.random()*0.0001 - 0.00005);
+							loc[1] = last[1] + latDiff * (part / length) + (Math.random()*0.0001 - 0.00005);
 							loc[2] = 0;
 							loc[3] = millis;
 							pos = loc;
@@ -364,12 +381,17 @@ public class SimulatedResource extends NodeAgent {
 			if (pos != null) {
 				result.put("lon", pos[0]);
 				result.put("lat", pos[1]);
-				result.put("eta", getEtaString());
+				if (route != null){
+					result.put("eta", getEtaString());
+				}
 				geoJsonPos = pos;
 			}
 		} else {
 			result.put("lon", geoJsonPos[0]);
 			result.put("lat", geoJsonPos[1]);
+		}
+		if (properties.has("icon")) {
+			result.put("icon", properties.get("icon").asText());
 		}
 		result.put("name", getId());
 		return result;
@@ -441,11 +463,14 @@ public class SimulatedResource extends NodeAgent {
 	 *
 	 * @param incTrack
 	 *            Should the track data be included?
+	 * @param incTarget
+	 *            the inc target
 	 * @return the geo json
 	 */
 
 	public FeatureCollection getGeoJson(
-			@Optional @Name("includeTrack") Boolean incTrack) {
+			@Optional @Name("includeTrack") Boolean incTrack,
+			@Optional @Name("includeTarget") Boolean incTarget) {
 		getCurrentLocation();
 
 		final FeatureCollection fc = new FeatureCollection();
@@ -483,23 +508,23 @@ public class SimulatedResource extends NodeAgent {
 				addTaskProperties(track);
 				fc.add(track);
 			}
-			final Feature goal = new Feature();
-			goal.setId(getId());
-			final Point goalPoint = new Point();
-			goalPoint.setCoordinates(new LngLatAlt(geoJsonGoal[0],
-					geoJsonGoal[1]));
-			goal.setGeometry(goalPoint);
-			goal.setProperty("type", "targetLocation");
+			if (incTarget != null && incTarget) {
+				final Feature goal = new Feature();
+				goal.setId(getId());
+				final Point goalPoint = new Point();
+				goalPoint.setCoordinates(new LngLatAlt(geoJsonGoal[0],
+						geoJsonGoal[1]));
+				goal.setGeometry(goalPoint);
+				goal.setProperty("type", "targetLocation");
+				addRouteProperties(goal);
 
+				addProperties(goal);
+				addTaskProperties(goal);
+
+				fc.add(goal);
+			}
 			addRouteProperties(origin);
-			addRouteProperties(goal);
-
-			addProperties(goal);
-			addTaskProperties(goal);
-
-			fc.add(goal);
 		}
-
 		return fc;
 	}
 
@@ -650,6 +675,7 @@ public class SimulatedResource extends NodeAgent {
 	public void stop() {
 		deploymentState = DEPLOYMENTSTATE.Unassigned;
 		plan = null;
+		route = null;
 	}
 
 	/**
@@ -707,7 +733,7 @@ public class SimulatedResource extends NodeAgent {
 				if (route == null) {
 					route = new Route();
 				}
-				route.routeBase = DateTime.now();
+				route.routeBase = DateTime.now().plus((long) (Math.random()*10000));
 				route.route = ROUTETYPE.inject(result.get("route"));
 				route.index = 0;
 				route.eta = new Duration(result.get("millis").asLong());

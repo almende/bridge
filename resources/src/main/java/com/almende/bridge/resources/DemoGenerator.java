@@ -32,6 +32,7 @@ import com.almende.eve.protocol.jsonrpc.annotation.Optional;
 import com.almende.eve.protocol.jsonrpc.annotation.Sender;
 import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
 import com.almende.eve.protocol.jsonrpc.formats.Params;
+import com.almende.util.TypeUtil;
 import com.almende.util.URIUtil;
 import com.almende.util.jackson.JOM;
 import com.almende.util.uuid.UUID;
@@ -50,8 +51,7 @@ public class DemoGenerator extends NodeAgent {
 
 	private Map<String, Task>			tasks				= new HashMap<String, Task>();
 	private boolean						stopEvac			= false;
-	
-	
+
 	@Override
 	public void onReady() {
 		doScenarioSwitch("reset");
@@ -185,14 +185,15 @@ public class DemoGenerator extends NodeAgent {
 		final Task task = tasks.get(id);
 		if (task != null) {
 			synchronized (task) {
-				if (task.getClosest() != null) {
+				URI closest = task.getClosest();
+				if ( closest != null) {
 					try {
 						final Params params = new Params();
 						params.add("plan", task.getConfig().get("planName")
 								.asText());
 						params.add("id", id);
 						params.set("params", task.getConfig().get("taskParams"));
-						call(task.getClosest(), "setPlan", params);
+						call(closest, "setPlan", params);
 					} catch (IOException e) {
 						LOG.log(Level.WARNING, "Couldn't send plan", e);
 					}
@@ -293,12 +294,14 @@ public class DemoGenerator extends NodeAgent {
 	 *            At what type of location?
 	 * @param nofAgents
 	 *            the nof agents
+	 * @param icon
+	 *            the icon
 	 * @param tag
 	 *            the tag
 	 */
 	public void generateAgents(@Name("type") String type,
 			@Name("at") String at, @Name("nofAgents") int nofAgents,
-			@Name("tag") String tag) {
+			@Name("icon") String icon, @Name("tag") String tag) {
 		// Generate X agents, at random stations
 		for (int i = 0; i < nofAgents; i++) {
 			SimulatedResource agent = new SimulatedResource();
@@ -316,6 +319,7 @@ public class DemoGenerator extends NodeAgent {
 			agentConfig.put("resType", type);
 			agentConfig.put("guid", new UUID().toString());
 			agentConfig.put("tag", tag);
+			agentConfig.put("icon", icon);
 			agent.setConfig(agentConfig);
 		}
 	}
@@ -378,8 +382,9 @@ public class DemoGenerator extends NodeAgent {
 		LOG.warning("DoScenarioSwitch called:" + step);
 		switch (step) {
 			case "reset":
-				stopEvac=true;
+				stopEvac = true;
 				clearPoI();
+				resetAgents();
 
 				double initHospital[][] = { { 1.452668, 43.559601 },
 						{ 1.400976, 43.610032 }, { 1.431940, 43.600344 },
@@ -393,7 +398,7 @@ public class DemoGenerator extends NodeAgent {
 						"hospital_building.png");
 				createPoIproperties("hospital-3", "Larrey",
 						"hospital_building.png");
-
+				
 				double initDamagedHospital[][] = { { 1.420396, 43.560099 } };
 				storePlacesOfInterest("damagedHospital", initDamagedHospital);
 				createPoIproperties("damagedHospital-0", "Marchant",
@@ -404,23 +409,36 @@ public class DemoGenerator extends NodeAgent {
 						{ 1.400537, 43.565397 }, { 1.462464, 43.610998 },
 						{ 1.483750, 43.578798 } };
 				storePlacesOfInterest("policeStation", policeStation);
-				createPoIproperties("policeStation-0", "policeStation-1", null);
-				createPoIproperties("policeStation-1", "policeStation-2", null);
-				createPoIproperties("policeStation-2", "policeStation-3", null);
-				createPoIproperties("policeStation-3", "policeStation-4", null);
-				createPoIproperties("policeStation-4", "policeStation-5", null);
-				createPoIproperties("policeStation-5", "policeStation-6", null);
+				createPoIproperties("policeStation-0", "policeStation-1",
+						"police_building.png");
+				createPoIproperties("policeStation-1", "policeStation-2",
+						"police_building.png");
+				createPoIproperties("policeStation-2", "policeStation-3",
+						"police_building.png");
+				createPoIproperties("policeStation-3", "policeStation-4",
+						"police_building.png");
+				createPoIproperties("policeStation-4", "policeStation-5",
+						"police_building.png");
+				createPoIproperties("policeStation-5", "policeStation-6",
+						"police_building.png");
 
 				double fireStation[][] = { { 1.455619, 43.595087 },
 						{ 1.355983, 43.593078 }, { 1.473571, 43.554649 },
-						{ 1.432859, 43.594798 }, { 1.464916, 43.600050 } };
+						{ 1.432859, 43.594798 }, { 1.464916, 43.600050 }, {1.410107, 43.533935 } };
 				storePlacesOfInterest("fireStation", fireStation);
-				createPoIproperties("fireStation-0", "fireStation-1", null);
-				createPoIproperties("fireStation-1", "fireStation-2", null);
-				createPoIproperties("fireStation-2", "fireStation-3", null);
-				createPoIproperties("fireStation-3", "fireStation-4", null);
-				createPoIproperties("fireStation-4", "fireStation-5", null);
-
+				createPoIproperties("fireStation-0", "fireStation-1",
+						"firedpt_building.png");
+				createPoIproperties("fireStation-1", "fireStation-2",
+						"firedpt_building.png");
+				createPoIproperties("fireStation-2", "fireStation-3",
+						"firedpt_building.png");
+				createPoIproperties("fireStation-3", "fireStation-4",
+						"firedpt_building.png");
+				createPoIproperties("fireStation-4", "fireStation-5",
+						"firedpt_building.png");
+				createPoIproperties("fireStation-5", "fireStation-6",
+						"firedpt_building.png");
+				
 				// Setup resources (most are there already through the keep
 				// eve.yaml)
 				// Load point of interest with "original icons"
@@ -507,23 +525,23 @@ public class DemoGenerator extends NodeAgent {
 				double roadblock[][] = { { 1.428539, 43.570415 },
 						{ 1.435995, 43.572156 }, { 1.422178, 43.563294 },
 						{ 1.424631, 43.559758 }, { 1.431684, 43.557258 },
-						{ 1.410907, 43.554105 }, { 1.420585, 43.549564 }, };
+						{ 1.410907, 43.552105 }, { 1.420585, 43.549564 } };
 				storePlacesOfInterest("roadblock", roadblock);
-				createPoIproperties("roadblock-1", "rb-2",
-						"cordons_zones_areas/scene_access_control_point_black_and_white.svg");
-				createPoIproperties("roadblock-2", "rb-3",
+				createPoIproperties("roadblock-2", "rb-2",
 						"incidents_hazards/road_block.png");
-				createPoIproperties("roadblock-3", "rb-4",
+				createPoIproperties("roadblock-3", "rb-3",
 						"incidents_hazards/road_block.png");
-				createPoIproperties("roadblock-4", "rb-5",
-						"cordons_zones_areas/scene_access_control_point_black_and_white.svg");
-				createPoIproperties("roadblock-5", "rb-6",
+				createPoIproperties("roadblock-4", "rb-4",
 						"incidents_hazards/road_block.png");
-				createPoIproperties("roadblock-6", "rb-7",
+				createPoIproperties("roadblock-5", "rb-5",
 						"incidents_hazards/road_block.png");
-				createPoIproperties("roadblock-7", "rb-8",
+				createPoIproperties("roadblock-6", "rb-6",
 						"incidents_hazards/road_block.png");
-				createPoIproperties("roadblock-8", "rb-9",
+				createPoIproperties("roadblock-7", "rb-7",
+						"incidents_hazards/road_block.png");
+				createPoIproperties("roadblock-8", "rb-8",
+						"incidents_hazards/road_block.png");
+				createPoIproperties("roadblock-9", "rb-9",
 						"incidents_hazards/road_block.png");
 
 				double hospital[][] = { { 1.452668, 43.559601 },
@@ -566,42 +584,101 @@ public class DemoGenerator extends NodeAgent {
 
 				// Per roadblock, 2 policecars, start Ambulance bridge to
 				// hospitals (~10), 10 fire trucks moving in to the two rvpFire.
-				for (int i = 0; i < roadblock.length; i++) {
-					Params paramInner = new Params();
+				final int length = placesOfInterest.get("roadblock").size();
+				for (int i = 0; i < length; i++) {
+					final Params paramInner = new Params();
 					paramInner.add("poiType", "roadblock");
-					paramInner.add("poiNumber", i + 2);
-					sendTask("RoadBlock", "police vehicle", "roadblock", i + 2,
-							15, paramInner);
-					sendTask("RoadBlock", "police vehicle", "roadblock", i + 2,
+					paramInner.add("poiNumber", i);
+					sendTask("RoadBlock", "police vehicle", "roadblock", i,
 							15, paramInner);
 				}
 				for (int i = 0; i < 6; i++) {
-					Params paramInner = new Params();
+					final Params paramInner = new Params();
 					paramInner.add("poiType", "rvpFire");
 					paramInner.add("poiNumber", 0);
 					sendTask("FireSuppression", "fire vehicle", "rvpFire", 0,
 							15, paramInner);
 				}
 				for (int i = 0; i < 4; i++) {
-					Params paramInner = new Params();
+					final Params paramInner = new Params();
 					paramInner.add("poiType", "rvpFire");
 					paramInner.add("poiNumber", 1);
 					sendTask("FireSuppression", "fire vehicle", "rvpFire", 1,
 							15, paramInner);
 				}
-				stopEvac=false;
+				stopEvac = false;
 				scheduleAmbulances();
 
 				break;
 			case "handling":
-				// add 5 rvpFire around the area
-				// >20 ambulances moving patients to hospitals, move more fire
-				// trucks to the rvpFire (~20)
+				final int length2 = placesOfInterest.get("roadblock").size();
+				for (int i = 0; i < length2; i++) {
+					final Params paramInner = new Params();
+					paramInner.add("poiType", "roadblock");
+					paramInner.add("poiNumber", i);
+					sendTask("RoadBlock", "police vehicle", "roadblock", i,
+							15, paramInner);
+				}
+				for (int i = 0; i < 4; i++) {
+					final Params paramInner = new Params();
+					paramInner.add("poiType", "rvpFire");
+					paramInner.add("poiNumber", 0);
+					sendTask("FireSuppression", "fire vehicle", "rvpFire", 0,
+							15, paramInner);
+				}
+				for (int i = 0; i < 6; i++) {
+					final Params paramInner = new Params();
+					paramInner.add("poiType", "rvpFire");
+					paramInner.add("poiNumber", 1);
+					sendTask("FireSuppression", "fire vehicle", "rvpFire", 1,
+							15, paramInner);
+				}
 				break;
 			default:
 				LOG.warning("Unknown step given:" + step);
 		}
 
+	}
+
+	/**
+	 * Load po i.
+	 *
+	 * @param data
+	 *            the data
+	 */
+	public void loadPoI(@Name("data") String data) {
+		int cntH = 0;
+		int cntP = 0;
+		int cntF = 0;
+
+		for (String line : data.split(" ")) {
+			String[] fields = line.split(",");
+			String type = fields[3];
+			double[][] loc = new double[1][2];
+			loc[0][0] = Double.valueOf(fields[1]);
+			loc[0][1] = Double.valueOf(fields[0]);
+
+			storePlacesOfInterest(type, loc);
+			switch (type) {
+				case "rem_hospital":
+					createPoIproperties(type + "-" + cntH, "",
+							"hospital_building.png");
+					cntH++;
+					break;
+				case "rem_policeStation":
+					createPoIproperties(type + "-" + cntP, "",
+							"police_building.png");
+					cntP++;
+					break;
+				case "rem_fireStation":
+					createPoIproperties(type + "-" + cntF, "",
+							"firedpt_building.png");
+					cntF++;
+					break;
+				default:
+					LOG.warning("Unknown type: '" + type + "'");
+			}
+		}
 	}
 
 	/**
@@ -624,6 +701,26 @@ public class DemoGenerator extends NodeAgent {
 		params.add("hospital", hospital);
 		params.add("rvpAmbu", rvp);
 		sendTask("Evac", "medic vehicle", "rvpAmbu", rvp, 15, params);
+	}
+	
+	private static final TypeUtil<List<URI>>	URILIST		= new TypeUtil<List<URI>>() {};
+	private void resetAgents() {
+		List<URI> allResources;
+		try {
+			allResources = callSync(URI.create("local:proxy"),
+					"getAllResources", new Params(), URILIST);
+		} catch (IOException e) {
+			allResources = new ArrayList<URI>(0);
+			LOG.log(Level.WARNING, "Couldn't obtain resourceList", e);
+		}
+		
+		for (URI agent: allResources){
+			try {
+				call(agent,"reset",new Params());
+			} catch (IOException e) {
+				LOG.log(Level.WARNING, "failed to send reset", e);
+			}
+		}
 	}
 
 }
