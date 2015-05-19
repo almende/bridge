@@ -14,6 +14,8 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -27,10 +29,10 @@ import com.almende.eve.protocol.jsonrpc.annotation.Access;
 import com.almende.eve.protocol.jsonrpc.annotation.AccessType;
 import com.almende.eve.protocol.jsonrpc.annotation.Name;
 import com.almende.eve.protocol.jsonrpc.annotation.Optional;
-import com.almende.eve.protocol.jsonrpc.formats.JSONRPCException;
 import com.almende.eve.protocol.jsonrpc.formats.JSONRequest;
 import com.almende.eve.protocol.jsonrpc.formats.Params;
 import com.almende.util.TypeUtil;
+import com.almende.util.URIUtil;
 import com.almende.util.jackson.JOM;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -43,9 +45,76 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class EDXLAdapterAgent extends Agent {
 	private static final Logger					LOG			= Logger.getLogger(EDXLAdapterAgent.class
 																	.getName());
-	private static final URI					DIRECTORY	= URI.create("local:yellow");
 	static String								lastTaskId	= "";
 	private static final TypeUtil<List<URI>>	URILIST		= new TypeUtil<List<URI>>() {};
+
+	private static final Map<String, String>	taskNames	= new TreeMap<String, String>(
+																	String.CASE_INSENSITIVE_ORDER);
+
+	static {
+		// Medic vehicles:
+		taskNames.put("Triage victims", "GotoAndStay");
+		taskNames.put("Trauma treatment", "GotoAndStay");
+		taskNames.put("Treat victim", "GotoAndStay");
+		taskNames.put("Transport victim to hospital", "Evac");
+		taskNames.put("Transport victim to emergency clinic", "Evac");
+		taskNames.put("Transport victim to assembly area", "Evac");
+		taskNames.put("Transport victim to other location", "Evac");
+		taskNames.put("transport hospital", "Evac");
+		taskNames.put("transport emergency clinic", "Evac");
+		taskNames.put("transport assembly area", "Evac");
+		taskNames.put("transport other location", "Evac");
+		taskNames.put("Take leader role at incident scene", "GotoAndStay");
+		taskNames.put("Take leader role at assembly area", "GotoAndStay");
+		taskNames.put("Take leader role at other location", "GotoAndStay");
+		taskNames.put("takerole incident scene", "GotoAndStay");
+		taskNames.put("takerole assembly area", "GotoAndStay");
+		taskNames.put("takerole other location", "GotoAndStay");
+
+		// Fire vehicles:
+		taskNames.put("fightfire putoutfire", "GotoAndStay");
+		taskNames.put("fightfire smokedive", "GotoAndStay");
+		taskNames.put("Put out fire", "GotoAndStay");
+		taskNames.put("Smoke dive", "GotoAndStay");
+		taskNames.put("Fast release", "GotoAndStay");
+		taskNames.put("Search building", "GotoAndStay");
+		taskNames.put("search other location", "GotoAndStay");
+
+		taskNames.put("Secure hazardous material", "GotoAndStay");
+		taskNames.put("After quench", "GotoAndStay");
+		taskNames.put("Assist police", "GotoAndStay");
+		taskNames.put("Assist medical personnel", "GotoAndStay");
+		taskNames.put("Diving task", "GotoAndStay");
+		taskNames.put("Rescue task", "Evac");
+
+		// Police vehicles:
+		taskNames.put("evacuate", "Evac");
+		taskNames.put("Evacuate area", "Evac");
+		taskNames.put("setup evacuation point", "GotoAndStay");
+		taskNames.put("goto observe report", "GotoAndStay");
+		taskNames.put("goto guard object", "GotoAndStay");
+		taskNames.put("setup road block", "GotoAndStay");
+		taskNames.put("setup cordon", "GotoAndStay");
+		taskNames.put("Observe and report", "GotoAndStay");
+		taskNames.put("Guard object", "GotoAndStay");
+		taskNames.put("Set up", "GotoAndStay");
+		taskNames.put("Set up road block", "GotoAndStay");
+		taskNames.put("Set up cordon", "GotoAndStay");
+
+		taskNames.put("takerole field commander", "GotoAndStay");
+		taskNames.put("takerole radio leader", "GotoAndStay");
+		taskNames.put("takerole logger", "GotoAndStay");
+		taskNames.put("takerole incident commander", "GotoAndStay");
+		taskNames.put("takerole second commander", "GotoAndStay");
+		taskNames.put("takerole team leader", "GotoAndStay");
+		taskNames.put("Take role as incident commander", "GotoAndStay");
+		taskNames.put("Take role as second commander", "GotoAndStay");
+		taskNames.put("Take role as team leader", "GotoAndStay");
+
+		taskNames.put("investigate incident cause", "GotoAndStay");
+		taskNames.put("investigate risk", "GotoAndStay");
+		taskNames.put("Investigate cause of incident", "GotoAndStay");
+	}
 
 	private void _notify(String data, JsonNode meta) throws Exception {
 		LOG.info("Received notify:" + data + " : " + meta.toString());
@@ -251,31 +320,54 @@ public class EDXLAdapterAgent extends Agent {
 						"Point", "pos" });
 				if (location != null) {
 					String[] loc = location.split(" ");
+					if (loc.length == 1){
+						loc = location.split(",");
+					}
 					task.setLat(loc[0]);
 					task.setLon(loc[1]);
 				}
 			}
 			first_resource = false;
 		}
+		
+		LOG.warning("Sending tasks:"+resources);
+		
 		// TODO: how to get Assigner from EDXL-RM?
-
 		for (JsonNode resource : resources) {
-			// Inefficient, as multiple resources per team...
 
-			ObjectNode params = JOM.createObjectNode();
-			params.put("key", resource.get("resourceID").textValue());
-			String agentUrl = callSync(DIRECTORY, "get", params, String.class);
+			// If resourceID is given, get specific agent and setPlan
+			// else, sendTask through demoGenerator to the agents.
+			String planName = taskNames.get(task.getTitle());
+			if (resource.get("resourceID") != null && !resource.get("resourceID").asText().isEmpty()) {
+				String resID = resource.get("resourceID").asText();
+				final Params params = new Params();
+				params.add("plan", planName);
 
-			if (agentUrl == null) {
-				System.err.println("Unknown ResourceID given!");
-				throw new JSONRPCException("Unknown ResourceID given.");
+				final Params parms = new Params();
+				parms.set("task", JOM.getInstance().valueToTree(task));
+				parms.add("title", task.getTitle());
+				params.set("params", parms);
+
+				call(URIUtil.parse("local:" + resID), "setPlan", params);
+			} else {
+				for (int i = 0; i < resource.get("amountString").asInt(); i++) {
+					final Params params = new Params();
+					params.add("plan", planName);
+					params.add("type", resource.get("resourceType").asText());
+					params.add("inMinutes", 15);
+
+					params.add("lat", task.getLat());
+					params.add("lon", task.getLon());
+					
+					final Params parms = new Params();
+					parms.set("task", JOM.getInstance().valueToTree(task));
+					parms.add("title", task.getTitle());
+					
+					params.set("taskParams", parms);
+
+					call(URIUtil.create("local:demo"), "sendTask", params);
+				}
 			}
-			String teamUrl = callSync(URI.create(agentUrl), "getTeam", null,
-					String.class);
-
-			ObjectNode parms = JOM.createObjectNode();
-			parms.set("task", JOM.getInstance().valueToTree(task));
-			call(URI.create(teamUrl), "setTask", parms);
 		}
 		// Prepare response message:
 		Document replyDoc = EDXLGenerator.genDoc("ResponseToRequestResource");

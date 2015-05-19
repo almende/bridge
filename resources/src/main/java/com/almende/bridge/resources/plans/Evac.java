@@ -28,7 +28,7 @@ public class Evac extends Plan {
 	private long						pickupDelay		= 160000;
 	private long						dropOffDelay	= 120000;
 
-	private static final String			TITLE			= "Evacuate wounded to hospital";
+	private String						title			= "Evacuate wounded to hospital";
 	private static final String[]		DESCRIPTIONS	= { "Task not started",
 			"Proceed to rendezvous point", "Pickup patient",
 			"Proceed to hospital", "Drop off patient", "Task finished" };
@@ -45,7 +45,7 @@ public class Evac extends Plan {
 																		"finished"));
 
 	private STATE						status			= STATE.init;
-	
+
 	/**
 	 * Instantiates a new evac.
 	 *
@@ -53,16 +53,19 @@ public class Evac extends Plan {
 	 *            the scheduler
 	 * @param config
 	 *            the config
+	 * @param title
+	 *            the title
 	 */
-	public Evac(Scheduler scheduler, ObjectNode config) {
-		super(scheduler,config);
+	public Evac(Scheduler scheduler, ObjectNode config, String title) {
+		super(scheduler, config);
 		this.hospital = FEATURE.inject(config.get("hospital"));
 		this.pickupPoint = FEATURE.inject(config.get("pickupPoint"));
+		this.title = title;
 	}
 
 	@Override
 	public String getTitle() {
-		return TITLE;
+		return title;
 	}
 
 	@Override
@@ -74,13 +77,13 @@ public class Evac extends Plan {
 	public String getStatus() {
 		return status.toString();
 	}
-	
+
 	@Override
 	@JsonIgnore
 	public String[] getLocations() {
 		return new String[] { hospital.getId(), pickupPoint.getId() };
 	}
-	
+
 	@Override
 	@JsonIgnore
 	public Feature getTargetLocation() {

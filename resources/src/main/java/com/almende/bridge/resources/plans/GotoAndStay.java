@@ -10,9 +10,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * The Class RoadBlock.
  */
-public class RoadBlock extends Goto {
+public class GotoAndStay extends Goto {
 
-	private static final String		TITLE			= "Go towards goal location.";
+	private String					title			= "Go towards goal location.";
+	private Boolean					stay			= true;
 	private static final String[]	DESCRIPTIONS	= { "Task not started",
 			"Traveling towards location", "Keep location", "Task finished" };
 
@@ -23,9 +24,16 @@ public class RoadBlock extends Goto {
 	 *            the scheduler
 	 * @param config
 	 *            the config
+	 * @param title
+	 *            the title
+	 * @param stay
+	 *            the stay
 	 */
-	public RoadBlock(Scheduler scheduler, ObjectNode config) {
+	public GotoAndStay(Scheduler scheduler, ObjectNode config, String title,
+			Boolean stay) {
 		super(scheduler, config);
+		this.title = title;
+		this.stay = stay;
 	}
 
 	/*
@@ -35,7 +43,11 @@ public class RoadBlock extends Goto {
 	@Override
 	public void arrival() {
 		if (status == STATE.travel) {
-			doStateChange(STATE.stay.name());
+			if (stay) {
+				doStateChange(STATE.stay.name());
+			} else {
+				doStateChange(STATE.finished.name());
+			}
 		} else {
 			doStateChange(STATE.travel.name());
 		}
@@ -48,6 +60,6 @@ public class RoadBlock extends Goto {
 
 	@Override
 	public String getTitle() {
-		return TITLE;
+		return title;
 	}
 }

@@ -85,17 +85,43 @@ public class DemoGenerator extends NodeAgent {
 	 * @param taskParams
 	 *            the task params
 	 */
-	public void sendTask(@Name("plan") String planName,
+	public void sendTaskPoI(@Name("plan") String planName,
 			@Name("type") String type, @Name("poiType") String poiType,
 			@Name("poiNumber") int poiNumber, @Name("inMinutes") int minutes,
+			@Name("taskParams") ObjectNode taskParams) {
+		Feature poi = getPoI(poiType, poiNumber);
+		Point point = (Point) poi.getGeometry();
+		Double latitude = point.getCoordinates().getLatitude();
+		Double longitude = point.getCoordinates().getLongitude();
+
+		sendTask(planName, type, latitude, longitude, minutes, taskParams);
+	}
+
+	/**
+	 * Send task.
+	 *
+	 * @param planName
+	 *            the plan name
+	 * @param type
+	 *            the type
+	 * @param latitude
+	 *            the latitude
+	 * @param longitude
+	 *            the longitude
+	 * @param minutes
+	 *            the minutes
+	 * @param taskParams
+	 *            the task params
+	 */
+	public void sendTask(@Name("plan") String planName,
+			@Name("type") String type, @Name("lat") Double latitude,
+			@Name("lon") Double longitude, @Name("inMinutes") int minutes,
 			@Name("taskParams") ObjectNode taskParams) {
 		final Params params = new Params();
 		final ObjectNode config = JOM.createObjectNode();
 
-		Feature poi = getPoI(poiType, poiNumber);
-		Point point = (Point) poi.getGeometry();
-		config.put("lat", point.getCoordinates().getLatitude());
-		config.put("lon", point.getCoordinates().getLongitude());
+		config.put("lat", latitude);
+		config.put("lon", longitude);
 		config.put("before", DateTime.now().plusMinutes(minutes).getMillis());
 		config.put("planName", planName);
 		config.put("resType", type);
@@ -186,7 +212,7 @@ public class DemoGenerator extends NodeAgent {
 		if (task != null) {
 			synchronized (task) {
 				URI closest = task.getClosest();
-				if ( closest != null) {
+				if (closest != null) {
 					try {
 						final Params params = new Params();
 						params.add("plan", task.getConfig().get("planName")
@@ -398,7 +424,7 @@ public class DemoGenerator extends NodeAgent {
 						"hospital_building.png");
 				createPoIproperties("hospital-3", "Larrey",
 						"hospital_building.png");
-				
+
 				double initDamagedHospital[][] = { { 1.420396, 43.560099 } };
 				storePlacesOfInterest("damagedHospital", initDamagedHospital);
 				createPoIproperties("damagedHospital-0", "Marchant",
@@ -424,7 +450,8 @@ public class DemoGenerator extends NodeAgent {
 
 				double fireStation[][] = { { 1.455619, 43.595087 },
 						{ 1.355983, 43.593078 }, { 1.473571, 43.554649 },
-						{ 1.432859, 43.594798 }, { 1.464916, 43.600050 }, {1.410107, 43.533935 } };
+						{ 1.432859, 43.594798 }, { 1.464916, 43.600050 },
+						{ 1.410107, 43.533935 } };
 				storePlacesOfInterest("fireStation", fireStation);
 				createPoIproperties("fireStation-0", "fireStation-1",
 						"firedpt_building.png");
@@ -438,7 +465,7 @@ public class DemoGenerator extends NodeAgent {
 						"firedpt_building.png");
 				createPoIproperties("fireStation-5", "fireStation-6",
 						"firedpt_building.png");
-				
+
 				// Setup resources (most are there already through the keep
 				// eve.yaml)
 				// Load point of interest with "original icons"
@@ -465,16 +492,18 @@ public class DemoGenerator extends NodeAgent {
 				Params params = new Params();
 				params.add("poiType", "rvpFire");
 				params.add("poiNumber", "0");
-				sendTask("FireSuppression", "fire vehicle", "rvpFire", 0, 15,
+				params.add("title", "Put out fire");
+				sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 0, 15,
 						params);
-				sendTask("FireSuppression", "fire vehicle", "rvpFire", 0, 15,
+				sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 0, 15,
 						params);
 
 				Params params2 = new Params();
 				params2.add("poiType", "roadblock");
 				params2.add("poiNumber", "0");
-				sendTask("RoadBlock", "police vehicle", "roadblock", 0, 15,
-						params2);
+				params2.add("title", "Set up road block");
+				sendTaskPoI("GotoAndStay", "police vehicle", "roadblock", 0,
+						15, params2);
 
 				break;
 			case "assessment":
@@ -495,29 +524,33 @@ public class DemoGenerator extends NodeAgent {
 				Params params3 = new Params();
 				params3.add("poiType", "rvpFire");
 				params3.add("poiNumber", "1");
-				sendTask("FireSuppression", "fire vehicle", "rvpFire", 1, 15,
+				params3.add("title", "Put out fire");
+
+				sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 1, 15,
 						params3);
-				sendTask("FireSuppression", "fire vehicle", "rvpFire", 1, 15,
-						params3);
+				sendTaskPoI("Goto", "fire vehicle", "rvpFire", 1, 15, params3);
 
 				Params params4 = new Params();
 				params4.add("poiType", "rvpFire");
 				params4.add("poiNumber", "0");
-				sendTask("FireSuppression", "fire vehicle", "rvpFire", 0, 15,
+				params4.add("title", "Rescue task");
+				sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 0, 15,
 						params4);
 
 				Params params5 = new Params();
 				params5.add("poiType", "roadblock");
 				params5.add("poiNumber", "1");
-				sendTask("RoadBlock", "police vehicle", "roadblock", 1, 15,
-						params5);
-				sendTask("RoadBlock", "police vehicle", "roadblock", 1, 15,
+				params5.add("title", "Set up road block");
+				sendTaskPoI("GotoAndStay", "police vehicle", "roadblock", 1,
+						15, params5);
+				sendTaskPoI("Goto", "police vehicle", "roadblock", 1, 15,
 						params5);
 
 				Params params6 = new Params();
 				params6.add("poiType", "roadblock");
 				params6.add("poiNumber", "0");
-				sendTask("RoadBlock", "police vehicle", "roadblock", 0, 15,
+				params6.add("title", "Set up road block");
+				sendTaskPoI("RoadBlock", "police vehicle", "roadblock", 0, 15,
 						params6);
 
 				break;
@@ -589,21 +622,33 @@ public class DemoGenerator extends NodeAgent {
 					final Params paramInner = new Params();
 					paramInner.add("poiType", "roadblock");
 					paramInner.add("poiNumber", i);
-					sendTask("RoadBlock", "police vehicle", "roadblock", i,
-							15, paramInner);
+
+					paramInner.add("title", "Set up road block");
+					sendTaskPoI("GotoAndStay", "police vehicle", "roadblock",
+							i, 15, paramInner);
 				}
-				for (int i = 0; i < 6; i++) {
+				for (int i = 0; i < 3; i++) {
 					final Params paramInner = new Params();
 					paramInner.add("poiType", "rvpFire");
 					paramInner.add("poiNumber", 0);
-					sendTask("FireSuppression", "fire vehicle", "rvpFire", 0,
+					paramInner.add("title", "Rescue task");
+					sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 0,
+							15, paramInner);
+				}
+				for (int i = 0; i < 3; i++) {
+					final Params paramInner = new Params();
+					paramInner.add("poiType", "rvpFire");
+					paramInner.add("poiNumber", 0);
+					paramInner.add("title", "Put out fire");
+					sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 0,
 							15, paramInner);
 				}
 				for (int i = 0; i < 4; i++) {
 					final Params paramInner = new Params();
 					paramInner.add("poiType", "rvpFire");
 					paramInner.add("poiNumber", 1);
-					sendTask("FireSuppression", "fire vehicle", "rvpFire", 1,
+					paramInner.add("title", "Put out fire");
+					sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 1,
 							15, paramInner);
 				}
 				stopEvac = false;
@@ -616,21 +661,32 @@ public class DemoGenerator extends NodeAgent {
 					final Params paramInner = new Params();
 					paramInner.add("poiType", "roadblock");
 					paramInner.add("poiNumber", i);
-					sendTask("RoadBlock", "police vehicle", "roadblock", i,
-							15, paramInner);
+					paramInner.add("title", "Setup roadblock");
+					sendTaskPoI("GotoAndStay", "police vehicle", "roadblock",
+							i, 15, paramInner);
 				}
 				for (int i = 0; i < 4; i++) {
 					final Params paramInner = new Params();
 					paramInner.add("poiType", "rvpFire");
 					paramInner.add("poiNumber", 0);
-					sendTask("FireSuppression", "fire vehicle", "rvpFire", 0,
+					paramInner.add("title", "Rescue task");
+					sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 0,
 							15, paramInner);
 				}
-				for (int i = 0; i < 6; i++) {
+				for (int i = 0; i < 3; i++) {
 					final Params paramInner = new Params();
 					paramInner.add("poiType", "rvpFire");
 					paramInner.add("poiNumber", 1);
-					sendTask("FireSuppression", "fire vehicle", "rvpFire", 1,
+					paramInner.add("title", "Rescue task");
+					sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 1,
+							15, paramInner);
+				}
+				for (int i = 0; i < 3; i++) {
+					final Params paramInner = new Params();
+					paramInner.add("poiType", "rvpFire");
+					paramInner.add("poiNumber", 1);
+					paramInner.add("title", "Put out fire");
+					sendTaskPoI("GotoAndStay", "fire vehicle", "rvpFire", 1,
 							15, paramInner);
 				}
 				break;
@@ -700,10 +756,11 @@ public class DemoGenerator extends NodeAgent {
 		Params params = new Params();
 		params.add("hospital", hospital);
 		params.add("rvpAmbu", rvp);
-		sendTask("Evac", "medic vehicle", "rvpAmbu", rvp, 15, params);
+		sendTaskPoI("Evac", "medic vehicle", "rvpAmbu", rvp, 15, params);
 	}
-	
-	private static final TypeUtil<List<URI>>	URILIST		= new TypeUtil<List<URI>>() {};
+
+	private static final TypeUtil<List<URI>>	URILIST	= new TypeUtil<List<URI>>() {};
+
 	private void resetAgents() {
 		List<URI> allResources;
 		try {
@@ -713,10 +770,10 @@ public class DemoGenerator extends NodeAgent {
 			allResources = new ArrayList<URI>(0);
 			LOG.log(Level.WARNING, "Couldn't obtain resourceList", e);
 		}
-		
-		for (URI agent: allResources){
+
+		for (URI agent : allResources) {
 			try {
-				call(agent,"reset",new Params());
+				call(agent, "reset", new Params());
 			} catch (IOException e) {
 				LOG.log(Level.WARNING, "failed to send reset", e);
 			}
